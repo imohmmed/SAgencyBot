@@ -68,6 +68,31 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/tasks/send-all", async (req, res) => {
+    try {
+      const { postLink, taskTypes, price } = req.body;
+      if (!postLink || !taskTypes || !price) {
+        return res.status(400).json({ error: "postLink, taskTypes, price required" });
+      }
+      const approvedMembers = await storage.getMembersByStatus("approved");
+      let sentCount = 0;
+      for (const m of approvedMembers) {
+        const task = await storage.createTask({
+          postLink,
+          taskTypes,
+          price,
+          assignedTo: m.telegramId,
+          status: "pending",
+        });
+        const sent = await sendTaskToMember(m.telegramId, task.id);
+        if (sent) sentCount++;
+      }
+      res.json({ sentCount, total: approvedMembers.length });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/tasks/:id/send", async (req, res) => {
     try {
       const taskId = parseInt(req.params.id);

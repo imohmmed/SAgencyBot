@@ -63,21 +63,35 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
         const idx = tasks.indexOf("comment");
         tasks[idx] = `comment_${commentCount}`;
       }
-      const res = await apiRequest("POST", "/api/tasks", {
-        postLink,
-        taskTypes: selectedTasks,
-        price: parseInt(price),
-        assignedTo: selectedMember || null,
-      });
-      return await res.json();
-    },
-    onSuccess: async (task: any) => {
-      if (selectedMember) {
-        await apiRequest("POST", `/api/tasks/${task.id}/send`, { telegramId: selectedMember });
+
+      if (selectedMember === "__all__") {
+        const res = await apiRequest("POST", "/api/tasks/send-all", {
+          postLink,
+          taskTypes: selectedTasks,
+          price: parseInt(price),
+        });
+        return await res.json();
+      } else {
+        const res = await apiRequest("POST", "/api/tasks", {
+          postLink,
+          taskTypes: selectedTasks,
+          price: parseInt(price),
+          assignedTo: selectedMember || null,
+        });
+        const task = await res.json();
+        if (selectedMember) {
+          await apiRequest("POST", `/api/tasks/${task.id}/send`, { telegramId: selectedMember });
+        }
+        return task;
       }
+    },
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-      toast({ title: "تم إنشاء المهمة", description: "تم إنشاء وإرسال المهمة بنجاح" });
+      const desc = data.sentCount !== undefined
+        ? `تم إرسال المهمة لـ ${data.sentCount} عضو من أصل ${data.total}`
+        : "تم إنشاء وإرسال المهمة بنجاح";
+      toast({ title: "تم إنشاء المهمة", description: desc });
       setOpen(false);
       setPostLink("");
       setSelectedTasks([]);
@@ -183,12 +197,13 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="member-select">إرسال إلى عضو</Label>
+            <Label htmlFor="member-select">إرسال إلى</Label>
             <Select onValueChange={setSelectedMember} value={selectedMember}>
               <SelectTrigger data-testid="select-member">
                 <SelectValue placeholder="اختر عضو..." />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__all__">جميع الأعضاء ({approvedMembers.length})</SelectItem>
                 {approvedMembers.map(m => (
                   <SelectItem key={m.telegramId} value={m.telegramId}>
                     {m.firstName || m.username || m.telegramId}

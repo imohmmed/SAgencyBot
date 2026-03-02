@@ -1004,24 +1004,24 @@ async function approveViaBot(telegramId: string) {
 
 export async function sendTaskToMember(telegramId: string, taskId: number) {
   const task = await storage.getTask(taskId);
-  if (!task) return;
+  if (!task) return false;
 
   const taskList = task.taskTypes.map(t => `• ${TASK_LABELS[t] || t}`).join("\n");
   const priceText = task.price === 1000 ? "1000 دينار (كل المهام)" : `${task.price} دينار`;
 
   try {
-    await bot.telegram.sendMessage(
+    await rawSendMessage(
       parseInt(telegramId),
-      `🔔 *مهمة جديدة!*\n\n` +
-      `🔗 الرابط: ${task.postLink}\n\n` +
-      `📋 *المهام المطلوبة:*\n${taskList}\n\n` +
-      `💰 الأجر: *${priceText}*\n\n` +
+      `🔔 مهمة جديدة!\n\n` +
+      `🔗 الرابط:\n${task.postLink}\n\n` +
+      `📋 المهام المطلوبة:\n${taskList}\n\n` +
+      `💰 الأجر: ${priceText}\n\n` +
       `⚡ أنجز المهمة بأسرع وقت للحصول على الأجر!`,
+      "",
       {
-        parse_mode: "Markdown",
-        ...styledInlineKeyboard([
+        inline_keyboard: [
           [styledButton("✅ تم إكمال المهام", `complete_task_${taskId}`, "success")]
-        ]),
+        ]
       }
     );
 
