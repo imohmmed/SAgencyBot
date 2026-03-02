@@ -137,7 +137,14 @@ bot.start(async (ctx) => {
   }
 
   if (existing && existing.status === "waiting_approval") {
-    await ctx.reply("⏳ طلبك قيد المراجعة. انتظر موافقة الإدارة.");
+    await ctx.reply(
+      `⏳ طلبك قيد المراجعة`,
+      {
+        ...styledInlineKeyboard([
+          [styledButton("تقديم حساب آخر", "submit_another_account")]
+        ]),
+      }
+    );
     return;
   }
 
@@ -217,6 +224,24 @@ bot.command("status", async (ctx) => {
     `📊 *حالة الإعدادات:*\n\n` +
     `مجموعة الموافقة: ${APPROVAL_GROUP_ID ? `✅ \`${APPROVAL_GROUP_ID}\`` : "❌ غير معيّنة - أرسل /setapproval بالمجموعة"}\n` +
     `مجموعة المدفوعات: ${PAYMENT_GROUP_ID ? `✅ \`${PAYMENT_GROUP_ID}\`` : "❌ غير معيّنة - أرسل /setpayment بالمجموعة"}`,
+    { parse_mode: "Markdown" }
+  );
+});
+
+bot.action("submit_another_account", async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = String(ctx.from.id);
+  await storage.updateMember(telegramId, {
+    status: "awaiting_info",
+    registrationStep: 4,
+    accountLink: null,
+    screenshotFileId: null,
+  });
+  await ctx.reply(
+    `📱 أرسل لنا:\n\n` +
+    `1️⃣ رابط حسابك على انستجرام\n` +
+    `2️⃣ سكرين شوت من داخل الحساب\n\n` +
+    `*أرسل الرابط أولاً في رسالة منفصلة ثم السكرين شوت.*`,
     { parse_mode: "Markdown" }
   );
 });
@@ -375,7 +400,12 @@ bot.on("photo", async (ctx) => {
     }
 
     await ctx.reply(
-      `🎉 شكراً! تم إرسال طلبك للمراجعة.\n\n⏳ سيتم الرد عليك خلال وقت قصير بعد مراجعة حسابك من قِبل الإدارة.`
+      `⏳ طلبك قيد المراجعة`,
+      {
+        ...styledInlineKeyboard([
+          [styledButton("تقديم حساب آخر", "submit_another_account")]
+        ]),
+      }
     );
     return;
   }
