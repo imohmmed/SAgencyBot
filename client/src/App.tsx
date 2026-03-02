@@ -10,6 +10,7 @@ import Members from "@/pages/Members";
 import Tasks from "@/pages/Tasks";
 import Payments from "@/pages/Payments";
 import Login from "@/pages/Login";
+import { apiUrl } from "@/lib/queryClient";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -94,7 +95,7 @@ function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/check", { credentials: "include" })
+    fetch(apiUrl("/api/auth/check"), { credentials: "include" })
       .then(res => res.json())
       .then(data => setAuthenticated(data.authenticated))
       .catch(() => setAuthenticated(false));

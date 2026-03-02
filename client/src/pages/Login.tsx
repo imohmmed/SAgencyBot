@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Lock, Bot } from "lucide-react";
+import { apiUrl } from "@/lib/queryClient";
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const [code, setCode] = useState("");
@@ -15,7 +16,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     setError("");
 
     try {
-      const res = await fetch("/api/login", {
+      const res = await fetch(apiUrl("/api/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
