@@ -42,6 +42,9 @@ const TASK_LABELS: Record<string, string> = {
 const CUSTOM_EMOJI_ACCEPT = "4956454790012863177";
 const CUSTOM_EMOJI_CANCEL = "5287527086985069121";
 const CUSTOM_EMOJI_APPROVED = "5985446383388204349";
+const CUSTOM_EMOJI_WITHDRAW = "5443127283898405358";
+
+const ownerState: { action: string | null; data?: any } = { action: null };
 
 function styledButton(text: string, callbackData: string, style?: string, customEmojiId?: string) {
   const btn: any = { text, callback_data: callbackData };
@@ -222,10 +225,23 @@ bot.start(async (ctx) => {
   const existing = await storage.getMember(telegramId);
 
   if (existing && existing.status === "approved") {
-    await ctx.reply(
-      `مرحباً ${ctx.from.first_name}! 👋\n\nأنت مسجل ومفعل. سيتم إرسال المهام لك قريباً. ابقَ متابع! 🚀`,
-      { parse_mode: "Markdown" }
+    await rawSendMessage(
+      ctx.chat!.id,
+      `مرحباً ${ctx.from.first_name}! 👋\n\n` +
+      `أنت عضو فعال في المنظومة.\n\n` +
+      `💰 رصيدك الحالي: ${existing.balance} دينار`,
+      "",
+      {
+        inline_keyboard: [
+          [styledButton("سحب أموال", "withdraw_funds", undefined, CUSTOM_EMOJI_WITHDRAW)],
+        ]
+      }
     );
+    return;
+  }
+
+  if (existing && existing.status === "banned") {
+    await ctx.reply("⛔ تم حظرك من المنظومة.");
     return;
   }
 
@@ -303,25 +319,50 @@ bot.command("chatid", async (ctx) => {
 
 bot.command("admin", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.reply(
-    `⚙️ *لوحة الأوامر:*\n\n` +
-    `📌 /setapproval - أرسلها بمجموعة الموافقة\n` +
-    `💰 /setpayment - أرسلها بمجموعة المدفوعات\n` +
-    `🔢 /chatid - لمعرفة ID المحادثة\n` +
-    `📊 /status - حالة الإعدادات\n\n` +
-    `مجموعة الموافقة: ${APPROVAL_GROUP_ID ? `\`${APPROVAL_GROUP_ID}\`` : "❌ غير معيّنة"}\n` +
-    `مجموعة المدفوعات: ${PAYMENT_GROUP_ID ? `\`${PAYMENT_GROUP_ID}\`` : "❌ غير معيّنة"}`,
-    { parse_mode: "Markdown" }
+  if (ctx.chat.type !== "private") return;
+  ownerState.action = null;
+  await rawSendMessage(
+    ctx.chat.id,
+    `⚙️ لوحة التحكم`,
+    "",
+    {
+      inline_keyboard: [
+        [styledButton("إرسال مهمة", "admin_send_task", "success")],
+        [styledButton("إحصائيات عامة", "admin_stats", "primary"), styledButton("إحصائيات المدفوعات", "admin_payment_stats", "primary")],
+        [styledButton("إضافة أموال", "admin_add_money", "success"), styledButton("حذف أموال", "admin_remove_money", "danger")],
+        [styledButton("كشف رصيد", "admin_check_balance", "primary")],
+        [styledButton("حظر مستخدم", "admin_ban_user", "danger")],
+        [styledButton("إحصائيات التفاعل", "admin_interaction_stats", "primary")],
+      ]
+    }
   );
 });
 
 bot.command("status", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
   await ctx.reply(
-    `📊 *حالة الإعدادات:*\n\n` +
-    `مجموعة الموافقة: ${APPROVAL_GROUP_ID ? `✅ \`${APPROVAL_GROUP_ID}\`` : "❌ غير معيّنة - أرسل /setapproval بالمجموعة"}\n` +
-    `مجموعة المدفوعات: ${PAYMENT_GROUP_ID ? `✅ \`${PAYMENT_GROUP_ID}\`` : "❌ غير معيّنة - أرسل /setpayment بالمجموعة"}`,
-    { parse_mode: "Markdown" }
+    `📊 حالة الإعدادات:\n\n` +
+    `مجموعة الموافقة: ${APPROVAL_GROUP_ID ? `✅ ${APPROVAL_GROUP_ID}` : "❌ غير معيّنة - أرسل /setapproval بالمجموعة"}\n` +
+    `مجموعة المدفوعات: ${PAYMENT_GROUP_ID ? `✅ ${PAYMENT_GROUP_ID}` : "❌ غير معيّنة - أرسل /setpayment بالمجموعة"}`
+  );
+});
+
+bot.action("withdraw_funds", async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = String(ctx.from.id);
+  const member = await storage.getMember(telegramId);
+  if (!member || member.status !== "approved") return;
+
+  if (member.balance < 5000) {
+    await ctx.reply(
+      `❌ رصيدك الحالي ${member.balance} دينار.\n\nالحد الأدنى للسحب هو 5,000 دينار.`
+    );
+    return;
+  }
+
+  await ctx.reply(
+    `💰 رصيدك الحالي: ${member.balance} دينار\n\n` +
+    `للسحب تواصل مع الإدارة مع ذكر المبلغ وطريقة الاستلام.\n\nالحد الأدنى للسحب: 5,000 دينار.`
   );
 });
 
@@ -341,6 +382,159 @@ bot.action("submit_another_account", async (ctx) => {
     `*أرسل الرابط أولاً في رسالة منفصلة ثم السكرين شوت.*`,
     { parse_mode: "Markdown" }
   );
+});
+
+bot.action("admin_send_task", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.answerCbQuery();
+  ownerState.action = "awaiting_task_link";
+  await ctx.reply("📎 أرسل رابط البوست (Instagram link):");
+});
+
+bot.action("admin_stats", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.answerCbQuery();
+  const stats = await storage.getStats();
+  const allMembers = await storage.getAllMembers();
+  const approved = allMembers.filter(m => m.status === "approved");
+  const waiting = allMembers.filter(m => m.status === "waiting_approval");
+  const banned = allMembers.filter(m => m.status === "banned");
+  await ctx.reply(
+    `📊 إحصائيات عامة:\n\n` +
+    `👥 إجمالي الأعضاء: ${stats.totalMembers}\n` +
+    `✅ أعضاء مفعلين: ${approved.length}\n` +
+    `⏳ بانتظار الموافقة: ${waiting.length}\n` +
+    `⛔ محظورين: ${banned.length}\n\n` +
+    `📋 إجمالي المهام: ${stats.totalTasks}\n` +
+    `✅ مهام مكتملة: ${stats.completedTasks}`
+  );
+});
+
+bot.action("admin_payment_stats", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.answerCbQuery();
+  const stats = await storage.getStats();
+  const allMembers = await storage.getAllMembers();
+  const approved = allMembers.filter(m => m.status === "approved");
+  const totalBalance = approved.reduce((sum, m) => sum + m.balance, 0);
+  const topMembers = approved.sort((a, b) => b.balance - a.balance).slice(0, 10);
+  let topList = topMembers.map((m, i) => `${i + 1}. ${m.firstName || ""} @${m.username || m.telegramId} - ${m.balance} دينار`).join("\n");
+  if (!topList) topList = "لا يوجد أعضاء بعد";
+  await ctx.reply(
+    `💰 إحصائيات المدفوعات:\n\n` +
+    `💵 إجمالي الأرصدة: ${totalBalance} دينار\n` +
+    `⏳ مدفوعات معلقة: ${stats.pendingPayments}\n\n` +
+    `🏆 أعلى 10 أرصدة:\n${topList}`
+  );
+});
+
+bot.action("admin_add_money", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.answerCbQuery();
+  ownerState.action = "awaiting_add_money_id";
+  await ctx.reply("💰 أرسل ID المستخدم الذي تريد إضافة أموال له:");
+});
+
+bot.action("admin_remove_money", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.answerCbQuery();
+  ownerState.action = "awaiting_remove_money_id";
+  await ctx.reply("💸 أرسل ID المستخدم الذي تريد حذف أموال منه:");
+});
+
+bot.action("admin_check_balance", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.answerCbQuery();
+  ownerState.action = "awaiting_check_id";
+  await ctx.reply("🔍 أرسل ID المستخدم للكشف عن رصيده:");
+});
+
+bot.action("admin_ban_user", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.answerCbQuery();
+  ownerState.action = "awaiting_ban_id";
+  await ctx.reply("⛔ أرسل ID المستخدم الذي تريد حظره:");
+});
+
+bot.action(/^task_type_(.+)$/, async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.answerCbQuery();
+  const type = ctx.match[1];
+
+  if (!ownerState.data?.postLink) {
+    await ctx.reply("❌ حدث خطأ. أرسل /admin وحاول مجدداً.");
+    ownerState.action = null;
+    return;
+  }
+
+  let taskTypes: string[];
+  let price: number;
+  if (type === "all") {
+    taskTypes = ["like", "comment", "share_story", "explore"];
+    price = 1000;
+  } else if (type === "like") {
+    taskTypes = ["like"];
+    price = 500;
+  } else if (type === "comment") {
+    taskTypes = ["comment"];
+    price = 500;
+  } else if (type === "story") {
+    taskTypes = ["share_story"];
+    price = 500;
+  } else {
+    taskTypes = ["explore"];
+    price = 500;
+  }
+
+  const approvedMembers = await storage.getMembersByStatus("approved");
+  if (approvedMembers.length === 0) {
+    await ctx.reply("❌ لا يوجد أعضاء مفعلين لإرسال المهمة لهم.");
+    ownerState.action = null;
+    return;
+  }
+
+  let sentCount = 0;
+  for (const m of approvedMembers) {
+    const task = await storage.createTask({
+      postLink: ownerState.data.postLink,
+      assignedTo: m.telegramId,
+      taskTypes,
+      price,
+      status: "pending",
+    });
+    const sent = await sendTaskToMember(m.telegramId, task.id);
+    if (sent) sentCount++;
+  }
+
+  await ctx.reply(`✅ تم إرسال المهمة لـ ${sentCount} عضو من أصل ${approvedMembers.length}`);
+  ownerState.action = null;
+});
+
+bot.action("admin_interaction_stats", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.answerCbQuery();
+  const allTasks = await storage.getAllTasks();
+  const sentTasks = allTasks.filter(t => t.status === "sent" || t.status === "completed");
+  const allSubs = await storage.getAllSubmissions();
+  const approvedMembers = await storage.getMembersByStatus("approved");
+
+  if (sentTasks.length === 0) {
+    await ctx.reply("📊 لا توجد مهام مرسلة بعد.");
+    return;
+  }
+
+  let report = `📊 إحصائيات التفاعل:\n\n`;
+  const lastTasks = sentTasks.slice(0, 5);
+  for (const task of lastTasks) {
+    const taskSubs = allSubs.filter(s => s.taskId === task.id);
+    const interacted = taskSubs.map(s => s.memberId);
+    const notInteracted = approvedMembers.filter(m => !interacted.includes(m.telegramId));
+
+    report += `📌 المهمة #${task.id} - ${task.postLink.substring(0, 30)}...\n`;
+    report += `✅ تفاعلوا: ${interacted.length}\n`;
+    report += `❌ لم يتفاعلوا: ${notInteracted.length}\n\n`;
+  }
+  await ctx.reply(report);
 });
 
 bot.action("noop_accepted", async (ctx) => {
@@ -404,6 +598,130 @@ bot.action("terms3_reject", async (ctx) => {
 
 bot.on("text", async (ctx) => {
   const telegramId = String(ctx.from.id);
+
+  if (ctx.from.id === OWNER_ID && ctx.chat.type === "private" && ownerState.action) {
+    const text = ctx.message.text;
+
+    if (ownerState.action === "awaiting_task_link") {
+      ownerState.action = "awaiting_task_types";
+      ownerState.data = { postLink: text };
+      await rawSendMessage(
+        ctx.chat.id,
+        "📋 اختر نوع المهام:",
+        "",
+        {
+          inline_keyboard: [
+            [styledButton("كل المهام (1000 دينار)", "task_type_all", "success")],
+            [styledButton("لايك فقط (500 دينار)", "task_type_like", "primary")],
+            [styledButton("تعليق فقط (500 دينار)", "task_type_comment", "primary")],
+            [styledButton("ستوري فقط (500 دينار)", "task_type_story", "primary")],
+            [styledButton("اكسبلور فقط (500 دينار)", "task_type_explore", "primary")],
+          ]
+        }
+      );
+      return;
+    }
+
+    if (ownerState.action === "awaiting_add_money_id") {
+      const member = await storage.getMember(text);
+      if (!member) {
+        await ctx.reply("❌ لم يتم العثور على هذا المستخدم. أرسل /admin للعودة.");
+        ownerState.action = null;
+        return;
+      }
+      ownerState.action = "awaiting_add_money_amount";
+      ownerState.data = { targetId: text, memberName: member.firstName || member.username || text };
+      await ctx.reply(`👤 ${member.firstName || ""} @${member.username || text}\nرصيده: ${member.balance} دينار\n\n💰 أرسل المبلغ المراد إضافته:`);
+      return;
+    }
+
+    if (ownerState.action === "awaiting_add_money_amount") {
+      const amount = parseInt(text);
+      if (isNaN(amount) || amount <= 0) {
+        await ctx.reply("❌ أدخل مبلغ صحيح. أرسل /admin للعودة.");
+        ownerState.action = null;
+        return;
+      }
+      const member = await storage.getMember(ownerState.data.targetId);
+      if (!member) { ownerState.action = null; return; }
+      const newBalance = member.balance + amount;
+      await storage.updateMember(ownerState.data.targetId, { balance: newBalance });
+      await ctx.reply(`✅ تم إضافة ${amount} دينار لـ ${ownerState.data.memberName}\nالرصيد الجديد: ${newBalance} دينار`);
+      try {
+        await bot.telegram.sendMessage(parseInt(ownerState.data.targetId), `💰 تم إضافة ${amount} دينار لرصيدك!\n\nرصيدك الحالي: ${newBalance} دينار`);
+      } catch (e) {}
+      ownerState.action = null;
+      return;
+    }
+
+    if (ownerState.action === "awaiting_remove_money_id") {
+      const member = await storage.getMember(text);
+      if (!member) {
+        await ctx.reply("❌ لم يتم العثور على هذا المستخدم. أرسل /admin للعودة.");
+        ownerState.action = null;
+        return;
+      }
+      ownerState.action = "awaiting_remove_money_amount";
+      ownerState.data = { targetId: text, memberName: member.firstName || member.username || text };
+      await ctx.reply(`👤 ${member.firstName || ""} @${member.username || text}\nرصيده: ${member.balance} دينار\n\n💸 أرسل المبلغ المراد حذفه:`);
+      return;
+    }
+
+    if (ownerState.action === "awaiting_remove_money_amount") {
+      const amount = parseInt(text);
+      if (isNaN(amount) || amount <= 0) {
+        await ctx.reply("❌ أدخل مبلغ صحيح. أرسل /admin للعودة.");
+        ownerState.action = null;
+        return;
+      }
+      const member = await storage.getMember(ownerState.data.targetId);
+      if (!member) { ownerState.action = null; return; }
+      const newBalance = Math.max(0, member.balance - amount);
+      await storage.updateMember(ownerState.data.targetId, { balance: newBalance });
+      await ctx.reply(`✅ تم حذف ${amount} دينار من ${ownerState.data.memberName}\nالرصيد الجديد: ${newBalance} دينار`);
+      try {
+        await bot.telegram.sendMessage(parseInt(ownerState.data.targetId), `💸 تم خصم ${amount} دينار من رصيدك.\n\nرصيدك الحالي: ${newBalance} دينار`);
+      } catch (e) {}
+      ownerState.action = null;
+      return;
+    }
+
+    if (ownerState.action === "awaiting_check_id") {
+      const member = await storage.getMember(text);
+      if (!member) {
+        await ctx.reply("❌ لم يتم العثور على هذا المستخدم.");
+        ownerState.action = null;
+        return;
+      }
+      await ctx.reply(
+        `🔍 كشف رصيد:\n\n` +
+        `👤 الاسم: ${member.firstName || ""} ${member.lastName || ""}\n` +
+        `🔗 يوزر: @${member.username || "بدون يوزر"}\n` +
+        `📱 ID: ${member.telegramId}\n` +
+        `💰 الرصيد: ${member.balance} دينار\n` +
+        `📊 الحالة: ${member.status}`
+      );
+      ownerState.action = null;
+      return;
+    }
+
+    if (ownerState.action === "awaiting_ban_id") {
+      const member = await storage.getMember(text);
+      if (!member) {
+        await ctx.reply("❌ لم يتم العثور على هذا المستخدم.");
+        ownerState.action = null;
+        return;
+      }
+      await storage.updateMember(text, { status: "banned" });
+      await ctx.reply(`⛔ تم حظر المستخدم ${member.firstName || ""} @${member.username || text}`);
+      try {
+        await bot.telegram.sendMessage(parseInt(text), "⛔ تم حظرك من المنظومة.");
+      } catch (e) {}
+      ownerState.action = null;
+      return;
+    }
+  }
+
   const member = await storage.getMember(telegramId);
 
   if (!member) return;
