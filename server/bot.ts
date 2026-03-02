@@ -43,15 +43,10 @@ const CUSTOM_EMOJI_ACCEPT = "4956454790012863177";
 const CUSTOM_EMOJI_CANCEL = "5287527086985069121";
 const CUSTOM_EMOJI_APPROVED = "5985446383388204349";
 
-const EMOJI_PLACEHOLDER = "\u2705";
-
 function styledButton(text: string, callbackData: string, style?: string, customEmojiId?: string) {
   const btn: any = { text, callback_data: callbackData };
   if (style) btn.style = style;
-  if (customEmojiId) {
-    btn.text = EMOJI_PLACEHOLDER + " " + text;
-    btn.text_entities = [{ type: "custom_emoji", offset: 0, length: 1, custom_emoji_id: customEmojiId }];
-  }
+  if (customEmojiId) btn.icon_custom_emoji_id = customEmojiId;
   return btn;
 }
 
