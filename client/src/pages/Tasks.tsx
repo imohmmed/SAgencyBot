@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, Plus, Link, DollarSign, CheckSquare } from "lucide-react";
+import { Send, Plus, Link, DollarSign, CheckSquare, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -296,6 +296,32 @@ function SendTaskDialog({ task, members }: { task: Task; members: Member[] }) {
   );
 }
 
+function DeleteTaskButton({ taskId }: { taskId: number }) {
+  const { toast } = useToast();
+  const deleteMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/tasks/${taskId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({ title: "تم الحذف", description: "تم حذف المهمة بنجاح" });
+    },
+    onError: () => toast({ title: "خطأ", description: "فشل حذف المهمة", variant: "destructive" }),
+  });
+
+  return (
+    <Button
+      size="sm"
+      variant="destructive"
+      onClick={() => deleteMutation.mutate()}
+      disabled={deleteMutation.isPending}
+      data-testid={`button-delete-task-${taskId}`}
+    >
+      <Trash2 className="w-3 h-3 mr-1" />
+      حذف
+    </Button>
+  );
+}
+
 export default function Tasks() {
   const { data: tasks, isLoading: tasksLoading } = useQuery<Task[]>({ queryKey: ["/api/tasks"] });
   const { data: members = [] } = useQuery<Member[]>({
@@ -386,6 +412,7 @@ export default function Tasks() {
                       {task.status === "pending" && (
                         <SendTaskDialog task={task} members={members} />
                       )}
+                      <DeleteTaskButton taskId={task.id} />
                     </div>
                   </div>
                 </CardContent>

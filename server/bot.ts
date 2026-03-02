@@ -247,6 +247,7 @@ bot.start(async (ctx) => {
       "",
       {
         inline_keyboard: [
+          [styledButton("مهامي", "my_tasks", "primary")],
           [styledButton("سحب أموال", "withdraw_funds", undefined, CUSTOM_EMOJI_WITHDRAW)],
         ]
       }
@@ -359,6 +360,39 @@ bot.command("status", async (ctx) => {
     `مجموعة الموافقة: ${APPROVAL_GROUP_ID ? `✅ ${APPROVAL_GROUP_ID}` : "❌ غير معيّنة - أرسل /setapproval بالمجموعة"}\n` +
     `مجموعة المدفوعات: ${PAYMENT_GROUP_ID ? `✅ ${PAYMENT_GROUP_ID}` : "❌ غير معيّنة - أرسل /setpayment بالمجموعة"}`
   );
+});
+
+bot.action("my_tasks", async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = String(ctx.from.id);
+  const member = await storage.getMember(telegramId);
+  if (!member || member.status !== "approved") return;
+
+  const tasks = await storage.getTasksForMember(telegramId);
+  if (tasks.length === 0) {
+    await ctx.reply("✅ لا توجد مهام حالياً. سيتم إعلامك عند وصول مهام جديدة.");
+    return;
+  }
+
+  for (const task of tasks) {
+    const taskList = task.taskTypes.map(t => `• ${formatTaskType(t)}`).join("\n");
+    const priceText = task.price === 1000 ? "1000 دينار (كل المهام)" : `${task.price} دينار`;
+    const notesLine = task.notes ? `\n📝 ملاحظة: ${task.notes}\n` : "";
+
+    await rawSendMessage(
+      ctx.chat!.id,
+      `🔔 مهمة #${task.id}\n\n` +
+      `🔗 الرابط:\n${task.postLink}\n\n` +
+      `📋 المهام المطلوبة:\n${taskList}\n\n` +
+      `💰 الأجر: ${priceText}${notesLine}`,
+      "",
+      {
+        inline_keyboard: [
+          [styledButton("✅ تم إكمال المهام", `complete_task_${task.id}`, "success")]
+        ]
+      }
+    );
+  }
 });
 
 bot.action("withdraw_funds", async (ctx) => {

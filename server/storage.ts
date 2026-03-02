@@ -23,6 +23,7 @@ export interface IStorage {
   getAllTasks(): Promise<Task[]>;
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: number, data: Partial<Task>): Promise<Task | undefined>;
+  deleteTask(id: number): Promise<void>;
   getTasksForMember(telegramId: string): Promise<Task[]>;
 
   getSubmission(taskId: number, memberId: string): Promise<TaskSubmission | undefined>;
@@ -75,6 +76,11 @@ class DbStorage implements IStorage {
   async updateTask(id: number, data: Partial<Task>): Promise<Task | undefined> {
     const [t] = await db.update(tasks).set(data).where(eq(tasks.id, id)).returning();
     return t;
+  }
+
+  async deleteTask(id: number): Promise<void> {
+    await db.delete(taskSubmissions).where(eq(taskSubmissions.taskId, id));
+    await db.delete(tasks).where(eq(tasks.id, id));
   }
 
   async getTasksForMember(telegramId: string): Promise<Task[]> {

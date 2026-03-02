@@ -108,6 +108,16 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/tasks/:id", async (req, res) => {
+    try {
+      const taskId = parseInt(req.params.id);
+      await storage.deleteTask(taskId);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get("/api/submissions", async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
