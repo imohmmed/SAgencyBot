@@ -26,6 +26,7 @@ export interface IStorage {
   getTasksForMember(telegramId: string): Promise<Task[]>;
 
   getSubmission(taskId: number, memberId: string): Promise<TaskSubmission | undefined>;
+  getSubmissionById(id: number): Promise<TaskSubmission | undefined>;
   getAllSubmissions(): Promise<TaskSubmission[]>;
   createSubmission(submission: InsertTaskSubmission): Promise<TaskSubmission>;
   updateSubmission(id: number, data: Partial<TaskSubmission>): Promise<TaskSubmission | undefined>;
@@ -85,6 +86,11 @@ class DbStorage implements IStorage {
   async getSubmission(taskId: number, memberId: string): Promise<TaskSubmission | undefined> {
     const [s] = await db.select().from(taskSubmissions)
       .where(and(eq(taskSubmissions.taskId, taskId), eq(taskSubmissions.memberId, memberId)));
+    return s;
+  }
+
+  async getSubmissionById(id: number): Promise<TaskSubmission | undefined> {
+    const [s] = await db.select().from(taskSubmissions).where(eq(taskSubmissions.id, id));
     return s;
   }
 

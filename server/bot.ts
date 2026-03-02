@@ -571,6 +571,67 @@ bot.action("admin_interaction_stats", async (ctx) => {
   await ctx.reply(report);
 });
 
+bot.action(/^pay_approve_(\d+)$/, async (ctx) => {
+  await ctx.answerCbQuery("تمت الموافقة ✅");
+  const submissionId = parseInt(ctx.match[1]);
+  const sub = await storage.getSubmissionById(submissionId);
+  if (!sub || sub.status === "approved") return;
+
+  const task = await storage.getTask(sub.taskId);
+  if (!task) return;
+
+  const member = await storage.getMember(sub.memberId);
+  if (!member) return;
+
+  await storage.updateSubmission(submissionId, { status: "approved", approvedAt: new Date() });
+  const newBalance = member.balance + task.price;
+  await storage.updateMember(sub.memberId, { balance: newBalance });
+
+  const approvedMarkup = {
+    inline_keyboard: [
+      [{ text: "حساب التيليكرام", url: `tg://user?id=${sub.memberId}`, style: "primary" }],
+      [{ text: "رابط المهمة", url: task.postLink, style: "primary" }],
+      [styledButton("تمت الموافقة ✅", "noop_accepted", "primary", CUSTOM_EMOJI_APPROVED)],
+    ]
+  };
+  await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, approvedMarkup);
+
+  try {
+    await bot.telegram.sendMessage(
+      parseInt(sub.memberId),
+      `✅ تمت الموافقة على إنجازك!\n\n💰 تم إضافة ${task.price} دينار لرصيدك.\n\nرصيدك الحالي: ${newBalance} دينار`
+    );
+  } catch (e) {}
+});
+
+bot.action(/^pay_reject_(\d+)$/, async (ctx) => {
+  await ctx.answerCbQuery("تم الإلغاء");
+  const submissionId = parseInt(ctx.match[1]);
+  const sub = await storage.getSubmissionById(submissionId);
+  if (!sub || sub.status === "approved" || sub.status === "rejected") return;
+
+  const task = await storage.getTask(sub.taskId);
+  if (!task) return;
+
+  await storage.updateSubmission(submissionId, { status: "rejected" });
+
+  const rejectedMarkup = {
+    inline_keyboard: [
+      [{ text: "حساب التيليكرام", url: `tg://user?id=${sub.memberId}`, style: "primary" }],
+      [{ text: "رابط المهمة", url: task.postLink, style: "primary" }],
+      [styledButton("تم الإلغاء ❌", "noop_cancelled", "danger", CUSTOM_EMOJI_CANCEL)],
+    ]
+  };
+  await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, rejectedMarkup);
+
+  try {
+    await bot.telegram.sendMessage(
+      parseInt(sub.memberId),
+      `❌ عذراً، تم رفض إنجازك للمهمة.\n\nحاول مرة أخرى مع التأكد من إنجاز جميع المهام المطلوبة.`
+    );
+  } catch (e) {}
+});
+
 bot.action("noop_accepted", async (ctx) => {
   await ctx.answerCbQuery("تمت الموافقة مسبقاً ✅");
 });
@@ -862,51 +923,103 @@ bot.on("photo", async (ctx) => {
     return;
   }
 
-  if (member.status === "approved" && member.registrationStep === 10) {
+  if (member.status === "approved" && memberState[telegramId]) {
     const photos = ctx.message.photo;
     const fileId = photos[photos.length - 1].file_id;
-    await storage.updateMember(telegramId, { registrationStep: 11 });
+    const state = memberState[telegramId];
 
-    const pendingTask = (await storage.getTasksForMember(telegramId))[0];
-    if (pendingTask) {
-      const existingSub = await storage.getSubmission(pendingTask.id, telegramId);
-      if (existingSub && existingSub.status === "awaiting_work_screenshot") {
-        await storage.updateSubmission(existingSub.id, {
-          workScreenshotFileId: fileId,
-          status: "awaiting_account_screenshot"
-        });
-        await ctx.reply("✅ تم! الآن أرسل سكرين شوت من داخل الحساب الذي أنجزت منه العمل.");
-      } else if (existingSub && existingSub.status === "awaiting_account_screenshot") {
-        await storage.updateSubmission(existingSub.id, {
-          accountScreenshotFileId: fileId,
-          status: "pending"
-        });
-        await storage.updateMember(telegramId, { registrationStep: 0 });
+    if (state.action === "collecting_work_screenshots") {
+      state.data.workPhotos.push(fileId);
+      const count = state.data.workPhotos.length;
 
-        const payGroupId = PAYMENT_GROUP_ID || OWNER_ID;
-        try {
-          await bot.telegram.sendMessage(
-            payGroupId,
-            `✅ *إكمال مهمة*${!PAYMENT_GROUP_ID ? " (المجموعة غير معيّنة)" : ""}\n\n` +
-            `👤 ${member.firstName || ""} @${member.username || member.telegramId}\n` +
-            `🔗 الرابط: ${pendingTask.postLink}\n` +
-            `💰 الأجر: ${pendingTask.price} دينار\n\n` +
-            `للموافقة: /pay_${existingSub.id}\nللرفض: /rejectpay_${existingSub.id}`,
-            { parse_mode: "Markdown" }
-          );
-          if (existingSub.workScreenshotFileId) {
-            await bot.telegram.sendPhoto(payGroupId, existingSub.workScreenshotFileId, { caption: "سكرين العمل" });
-          }
-          await bot.telegram.sendPhoto(payGroupId, fileId, { caption: "سكرين الحساب" });
-        } catch (e) {
-          console.log("Could not send to payment group:", e);
+      await rawSendMessage(
+        ctx.chat!.id,
+        `✅ تم حفظ الصورة (${count})\n\nأرسل صورة أخرى أو اضغط إرسال.`,
+        "",
+        {
+          inline_keyboard: [
+            [styledButton("📸 إضافة صورة أخرى", "submit_more_work_photos", "primary")],
+            [styledButton("✅ إرسال", "done_work_photos", "success")],
+          ]
+        }
+      );
+      return;
+    }
+
+    if (state.action === "awaiting_account_screenshot") {
+      const taskId = state.data.taskId;
+      const submissionId = state.data.submissionId;
+      const workPhotos: string[] = state.data.workPhotos;
+
+      await storage.updateSubmission(submissionId, {
+        workScreenshotFileId: workPhotos[0] || null,
+        accountScreenshotFileId: fileId,
+        status: "pending"
+      });
+
+      delete memberState[telegramId];
+
+      const task = await storage.getTask(taskId);
+      if (!task) return;
+
+      const payGroupId = PAYMENT_GROUP_ID || OWNER_ID;
+      try {
+        const taskTypeLabels = task.taskTypes.map(t => TASK_LABELS[t] || t).join("، ");
+
+        const caption =
+          `📋 إثبات إنجاز مهمة\n\n` +
+          `👤 العضو: ${member.firstName || ""} @${member.username || member.telegramId}\n` +
+          `📱 ID: ${telegramId}\n` +
+          `🔗 الرابط: ${task.postLink}\n` +
+          `📌 المهام: ${taskTypeLabels}\n` +
+          `💰 الأجر: ${task.price} دينار`;
+
+        const approvalKeyboard = {
+          inline_keyboard: [
+            [{ text: "حساب التيليكرام", url: `tg://user?id=${telegramId}`, style: "primary" }],
+            [{ text: "رابط المهمة", url: task.postLink, style: "primary" }],
+            [
+              styledButton("موافقة", `pay_approve_${submissionId}`, "success", CUSTOM_EMOJI_ACCEPT),
+              styledButton("إلغاء", `pay_reject_${submissionId}`, "danger", CUSTOM_EMOJI_CANCEL),
+            ]
+          ]
+        };
+
+        const mediaGroup = [];
+        for (let i = 0; i < workPhotos.length; i++) {
+          mediaGroup.push({
+            type: "photo",
+            media: workPhotos[i],
+            ...(i === 0 ? { caption: `سكرين العمل (${workPhotos.length} صور)` } : {})
+          });
+        }
+        if (mediaGroup.length > 0) {
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: payGroupId,
+              media: mediaGroup,
+            })
+          });
         }
 
-        await ctx.reply(
-          `🎉 ممتاز! تم إرسال إنجازك للإدارة.\n\n` +
-          `⏳ سيتم مراجعة عملك وإضافة ${pendingTask.price} دينار لرصيدك قريباً.`
-        );
+        await rawSendPhoto(payGroupId, fileId, caption, approvalKeyboard);
+      } catch (e) {
+        console.log("Could not send to payment group:", e);
       }
+
+      await rawSendMessage(
+        ctx.chat!.id,
+        `🎉 ممتاز! تم إرسال إنجازك للإدارة.\n\n⏳ سيتم مراجعة عملك وإضافة ${task.price} دينار لرصيدك قريباً.`,
+        "",
+        {
+          inline_keyboard: [
+            [styledButton("لدي حساب ثاني", `task_another_account_${taskId}`, "primary")],
+          ]
+        }
+      );
+      return;
     }
   }
 });
@@ -957,9 +1070,9 @@ bot.action(/^complete_task_(\d+)$/, async (ctx) => {
   const task = await storage.getTask(taskId);
   if (!task) return;
 
-  const existing = await storage.getSubmission(taskId, telegramId);
-  if (!existing) {
-    await storage.createSubmission({
+  let sub = await storage.getSubmission(taskId, telegramId);
+  if (!sub) {
+    sub = await storage.createSubmission({
       taskId,
       memberId: telegramId,
       status: "awaiting_work_screenshot",
@@ -976,10 +1089,55 @@ bot.action(/^complete_task_(\d+)$/, async (ctx) => {
     console.log("Could not edit task button:", (e as any).message);
   }
 
-  await storage.updateMember(telegramId, { registrationStep: 10 });
+  memberState[telegramId] = {
+    action: "collecting_work_screenshots",
+    data: { taskId, submissionId: sub.id, workPhotos: [] }
+  };
+
   await ctx.reply(
     `✅ ممتاز! لإثبات إنجاز المهمة:\n\n` +
-    `📸 أرسل أولاً سكرين شوت من العمل الذي قمت به (التعليق أو اللايك أو الستوري).`
+    `📸 أرسل سكرين شوت من العمل الذي قمت به (التعليق أو اللايك أو الستوري).\n\n` +
+    `يمكنك إرسال أكثر من صورة.`
+  );
+});
+
+bot.action("submit_more_work_photos", async (ctx) => {
+  await ctx.answerCbQuery();
+  await ctx.reply("📸 أرسل صورة أخرى:");
+});
+
+bot.action("done_work_photos", async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = String(ctx.from.id);
+  if (!memberState[telegramId] || memberState[telegramId].action !== "collecting_work_screenshots") return;
+
+  memberState[telegramId].action = "awaiting_account_screenshot";
+  await ctx.reply("✅ تم! الآن أرسل سكرين شوت من داخل الحساب الذي أنجزت منه العمل.");
+});
+
+bot.action(/^task_another_account_(\d+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  const taskId = parseInt(ctx.match[1]);
+  const telegramId = String(ctx.from.id);
+  const member = await storage.getMember(telegramId);
+  if (!member || member.status !== "approved") return;
+
+  const task = await storage.getTask(taskId);
+  if (!task) return;
+
+  const sub = await storage.createSubmission({
+    taskId,
+    memberId: telegramId,
+    status: "awaiting_work_screenshot",
+  });
+
+  memberState[telegramId] = {
+    action: "collecting_work_screenshots",
+    data: { taskId, submissionId: sub.id, workPhotos: [] }
+  };
+
+  await ctx.reply(
+    `📸 أرسل سكرين شوت من العمل الذي قمت به من الحساب الثاني.\n\nيمكنك إرسال أكثر من صورة.`
   );
 });
 
