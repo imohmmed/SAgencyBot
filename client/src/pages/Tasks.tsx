@@ -63,13 +63,13 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
         const idx = tasks.indexOf("comment");
         tasks[idx] = `comment_${commentCount}`;
       }
-      const task = await apiRequest("POST", "/api/tasks", {
+      const res = await apiRequest("POST", "/api/tasks", {
         postLink,
         taskTypes: selectedTasks,
         price: parseInt(price),
         assignedTo: selectedMember || null,
       });
-      return task;
+      return await res.json();
     },
     onSuccess: async (task: any) => {
       if (selectedMember) {
