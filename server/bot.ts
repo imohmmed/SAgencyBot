@@ -56,6 +56,7 @@ const CUSTOM_EMOJI_ASIACELL = "5280813344431819469";
 const CUSTOM_EMOJI_MASTERCARD = "5296433556371807395";
 
 const memberState: Record<string, { action: string; data?: any }> = {};
+const withdrawalRequests: Record<string, { telegramId: string; amount: number; method: string; phone: string }> = {};
 
 const ownerState: { action: string | null; data?: any } = { action: null };
 
@@ -640,6 +641,63 @@ bot.action(/^pay_reject_(\d+)$/, async (ctx) => {
   } catch (e) {}
 });
 
+bot.action(/^wd_approve_(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery("تمت الموافقة ✅");
+  const withdrawId = ctx.match[1];
+  const wd = withdrawalRequests[withdrawId];
+  if (!wd) return;
+
+  const member = await storage.getMember(wd.telegramId);
+  if (!member) return;
+
+  const newBalance = Math.max(0, member.balance - wd.amount);
+  await storage.updateMember(wd.telegramId, { balance: newBalance });
+
+  const approvedMarkup = {
+    inline_keyboard: [
+      [{ text: "حساب التيليكرام", url: `tg://user?id=${wd.telegramId}`, style: "primary" }],
+      [styledButton(`تم التحويل ✅ (${wd.amount} دينار)`, "noop_accepted", "primary", CUSTOM_EMOJI_APPROVED)],
+    ]
+  };
+  await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, approvedMarkup);
+
+  try {
+    await bot.telegram.sendMessage(
+      parseInt(wd.telegramId),
+      `✅ تم تحويل ${wd.amount} دينار لحسابك!\n\n` +
+      `🏦 طريقة الدفع: ${wd.method}\n` +
+      `📞 الرقم: ${wd.phone}\n\n` +
+      `💰 رصيدك الحالي: ${newBalance} دينار`
+    );
+  } catch (e) {}
+
+  delete withdrawalRequests[withdrawId];
+});
+
+bot.action(/^wd_reject_(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery("تم الإلغاء");
+  const withdrawId = ctx.match[1];
+  const wd = withdrawalRequests[withdrawId];
+  if (!wd) return;
+
+  const rejectedMarkup = {
+    inline_keyboard: [
+      [{ text: "حساب التيليكرام", url: `tg://user?id=${wd.telegramId}`, style: "primary" }],
+      [styledButton("تم الإلغاء ❌", "noop_cancelled", "danger", CUSTOM_EMOJI_CANCEL)],
+    ]
+  };
+  await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, rejectedMarkup);
+
+  try {
+    await bot.telegram.sendMessage(
+      parseInt(wd.telegramId),
+      `❌ تم رفض طلب السحب.\n\nتواصل مع الإدارة لمزيد من المعلومات.`
+    );
+  } catch (e) {}
+
+  delete withdrawalRequests[withdrawId];
+});
+
 bot.action("noop_accepted", async (ctx) => {
   await ctx.answerCbQuery("تمت الموافقة مسبقاً ✅");
 });
@@ -841,20 +899,37 @@ bot.on("text", async (ctx) => {
       `سيتم تحويل المبلغ قريباً ⏳`
     );
 
-    if (PAYMENT_GROUP_ID) {
-      try {
-        await bot.telegram.sendMessage(
-          parseInt(PAYMENT_GROUP_ID),
-          `💸 طلب سحب جديد\n\n` +
-          `👤 العضو: ${member.firstName || ""} @${member.username || telegramId}\n` +
-          `📱 ID: ${telegramId}\n` +
-          `💰 الرصيد: ${member.balance} دينار\n` +
-          `🏦 طريقة الدفع: ${data.methodName}\n` +
-          `📞 الرقم: ${phoneNumber}`
-        );
-      } catch (e) {
-        console.error("Failed to send withdrawal to payment group:", e);
-      }
+    const payGroupId = PAYMENT_GROUP_ID || OWNER_ID;
+    try {
+      const withdrawId = `wd_${telegramId}_${Date.now()}`;
+      withdrawalRequests[withdrawId] = {
+        telegramId,
+        amount: member.balance,
+        method: data.methodName,
+        phone: phoneNumber,
+      };
+
+      await rawSendMessage(
+        payGroupId,
+        `💸 طلب سحب جديد\n\n` +
+        `👤 العضو: ${member.firstName || ""} @${member.username || telegramId}\n` +
+        `📱 ID: ${telegramId}\n` +
+        `💰 المبلغ: ${member.balance} دينار\n` +
+        `🏦 طريقة الدفع: ${data.methodName}\n` +
+        `📞 الرقم: ${phoneNumber}`,
+        "",
+        {
+          inline_keyboard: [
+            [{ text: "حساب التيليكرام", url: `tg://user?id=${telegramId}`, style: "primary" }],
+            [
+              styledButton("موافقة (تم التحويل)", `wd_approve_${withdrawId}`, "success", CUSTOM_EMOJI_ACCEPT),
+              styledButton("إلغاء", `wd_reject_${withdrawId}`, "danger", CUSTOM_EMOJI_CANCEL),
+            ]
+          ]
+        }
+      );
+    } catch (e) {
+      console.error("Failed to send withdrawal to payment group:", e);
     }
     return;
   }
@@ -872,12 +947,6 @@ bot.on("text", async (ctx) => {
     }
   }
 
-  if (member.status === "approved") {
-    const tasks = await storage.getTasksForMember(telegramId);
-    if (tasks.length > 0) {
-      await ctx.reply(`لديك ${tasks.length} مهمة نشطة. استخدم الأزرار للتفاعل معها.`);
-    }
-  }
 });
 
 bot.on("photo", async (ctx) => {
