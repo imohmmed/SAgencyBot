@@ -43,6 +43,11 @@ const CUSTOM_EMOJI_ACCEPT = "4956454790012863177";
 const CUSTOM_EMOJI_CANCEL = "5287527086985069121";
 const CUSTOM_EMOJI_APPROVED = "5985446383388204349";
 const CUSTOM_EMOJI_WITHDRAW = "5443127283898405358";
+const CUSTOM_EMOJI_ZAINCASH = "5280927938454244038";
+const CUSTOM_EMOJI_ASIACELL = "5280813344431819469";
+const CUSTOM_EMOJI_MASTERCARD = "5296433556371807395";
+
+const memberState: Record<string, { action: string; data?: any }> = {};
 
 const ownerState: { action: string | null; data?: any } = { action: null };
 
@@ -360,10 +365,39 @@ bot.action("withdraw_funds", async (ctx) => {
     return;
   }
 
-  await ctx.reply(
-    `💰 رصيدك الحالي: ${member.balance} دينار\n\n` +
-    `للسحب تواصل مع الإدارة مع ذكر المبلغ وطريقة الاستلام.\n\nالحد الأدنى للسحب: 5,000 دينار.`
+  await rawSendMessage(
+    ctx.chat!.id,
+    `💰 رصيدك الحالي: ${member.balance} دينار\n\nاختر طريقة الدفع:`,
+    "",
+    {
+      inline_keyboard: [
+        [styledButton("زين كاش", "withdraw_method_zaincash", "success", CUSTOM_EMOJI_ZAINCASH)],
+        [styledButton("اسياسيل", "withdraw_method_asiacell", "primary", CUSTOM_EMOJI_ASIACELL)],
+        [styledButton("ماستر كارد", "withdraw_method_mastercard", "primary", CUSTOM_EMOJI_MASTERCARD)],
+      ]
+    }
   );
+});
+
+bot.action(/^withdraw_method_(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = String(ctx.from.id);
+  const member = await storage.getMember(telegramId);
+  if (!member || member.status !== "approved" || member.balance < 5000) return;
+
+  const method = ctx.match[1];
+  const methodNames: Record<string, string> = {
+    zaincash: "زين كاش",
+    asiacell: "اسياسيل",
+    mastercard: "ماستر كارد",
+  };
+
+  memberState[telegramId] = {
+    action: "awaiting_withdraw_number",
+    data: { method, methodName: methodNames[method] || method, balance: member.balance }
+  };
+
+  await ctx.reply(`📱 اختيارك: ${methodNames[method]}\n\nأرسل رقمك الآن:`);
 });
 
 bot.action("submit_another_account", async (ctx) => {
@@ -720,6 +754,40 @@ bot.on("text", async (ctx) => {
       ownerState.action = null;
       return;
     }
+  }
+
+  if (memberState[telegramId]?.action === "awaiting_withdraw_number" && ctx.chat.type === "private") {
+    const phoneNumber = ctx.message.text;
+    const data = memberState[telegramId].data;
+    delete memberState[telegramId];
+
+    const member = await storage.getMember(telegramId);
+    if (!member || member.status !== "approved" || member.balance < 5000) return;
+
+    await ctx.reply(
+      `✅ تم استلام طلب السحب\n\n` +
+      `💰 الرصيد: ${member.balance} دينار\n` +
+      `📱 طريقة الدفع: ${data.methodName}\n` +
+      `📞 الرقم: ${phoneNumber}\n\n` +
+      `سيتم تحويل المبلغ قريباً ⏳`
+    );
+
+    if (PAYMENT_GROUP_ID) {
+      try {
+        await bot.telegram.sendMessage(
+          parseInt(PAYMENT_GROUP_ID),
+          `💸 طلب سحب جديد\n\n` +
+          `👤 العضو: ${member.firstName || ""} @${member.username || telegramId}\n` +
+          `📱 ID: ${telegramId}\n` +
+          `💰 الرصيد: ${member.balance} دينار\n` +
+          `🏦 طريقة الدفع: ${data.methodName}\n` +
+          `📞 الرقم: ${phoneNumber}`
+        );
+      } catch (e) {
+        console.error("Failed to send withdrawal to payment group:", e);
+      }
+    }
+    return;
   }
 
   const member = await storage.getMember(telegramId);
