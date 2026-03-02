@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Switch, Route, Link, useLocation } from "wouter";
+import { Switch, Route, Link, useLocation, Router } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -18,6 +18,8 @@ import {
 import {
   LayoutDashboard, Users, CheckSquare, DollarSign, Bot
 } from "lucide-react";
+
+const BASE_PATH = import.meta.env.VITE_BASE_PATH || "/";
 
 const navItems = [
   { title: "لوحة التحكم", url: "/", icon: LayoutDashboard },
@@ -76,7 +78,7 @@ function AppSidebar() {
   );
 }
 
-function Router() {
+function AppRoutes() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
@@ -118,23 +120,25 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <SidebarProvider style={style as React.CSSProperties}>
-          <div className="flex h-screen w-full overflow-hidden" dir="rtl">
-            <AppSidebar />
-            <div className="flex flex-col flex-1 overflow-hidden">
-              <header className="flex items-center justify-between px-4 py-3 border-b bg-background shrink-0">
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                  <span className="text-sm text-muted-foreground">البوت نشط</span>
-                </div>
-              </header>
-              <main className="flex-1 overflow-y-auto">
-                <Router />
-              </main>
+        <Router base={BASE_PATH === "/" ? "" : BASE_PATH.replace(/\/$/, "")}>
+          <SidebarProvider style={style as React.CSSProperties}>
+            <div className="flex h-screen w-full overflow-hidden" dir="rtl">
+              <AppSidebar />
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <header className="flex items-center justify-between px-4 py-3 border-b bg-background shrink-0">
+                  <SidebarTrigger data-testid="button-sidebar-toggle" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span className="text-sm text-muted-foreground">البوت نشط</span>
+                  </div>
+                </header>
+                <main className="flex-1 overflow-y-auto">
+                  <AppRoutes />
+                </main>
+              </div>
             </div>
-          </div>
-        </SidebarProvider>
+          </SidebarProvider>
+        </Router>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
