@@ -401,12 +401,11 @@ bot.on("photo", async (ctx) => {
       try {
         await bot.telegram.sendMessage(
           APPROVAL_GROUP_ID,
-          `🆕 *طلب انضمام جديد*\n\n` +
+          `🆕 طلب انضمام جديد\n\n` +
           `👤 الاسم: ${member.firstName || ""} ${member.lastName || ""}\n` +
           `🔗 يوزر: @${member.username || "بدون يوزر"}\n` +
-          `📱 ID: \`${telegramId}\`\n` +
-          `🌐 الحساب: ${member.accountLink}`,
-          { parse_mode: "Markdown" }
+          `📱 ID: ${telegramId}\n` +
+          `🌐 الحساب: ${member.accountLink}`
         );
         await bot.telegram.sendPhoto(APPROVAL_GROUP_ID, fileId, {
           caption: `📸 سكرين شوت الحساب - ID: ${telegramId}\n\nللموافقة: /approve_${telegramId}\nللرفض: /reject_${telegramId}`,
@@ -417,12 +416,11 @@ bot.on("photo", async (ctx) => {
     } else {
       try {
         await bot.telegram.sendMessage(OWNER_ID,
-          `🆕 *طلب انضمام جديد* (المجموعة غير معيّنة)\n\n` +
+          `🆕 طلب انضمام جديد (المجموعة غير معيّنة)\n\n` +
           `👤 ${member.firstName || ""} @${member.username || "بدون يوزر"}\n` +
-          `📱 ID: \`${telegramId}\`\n` +
+          `📱 ID: ${telegramId}\n` +
           `🌐 ${member.accountLink}\n\n` +
-          `⚠️ أرسل /setapproval في مجموعة الموافقة لتفعيل الإرسال التلقائي`,
-          { parse_mode: "Markdown" }
+          `⚠️ أرسل /setapproval في مجموعة الموافقة لتفعيل الإرسال التلقائي`
         );
       } catch (e) {
         console.log("Could not notify owner:", e);
