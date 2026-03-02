@@ -59,57 +59,118 @@ function styledInlineKeyboard(rows: any[][]) {
   return { reply_markup: { inline_keyboard: rows } };
 }
 
-function acceptRejectButtons(acceptCb: string, rejectCb: string) {
-  return styledInlineKeyboard([
-    [
-      styledButton("موافق", acceptCb, "success", CUSTOM_EMOJI_ACCEPT),
-      styledButton("إلغاء", rejectCb, "danger", CUSTOM_EMOJI_CANCEL),
+async function rawSendMessage(chatId: number | string, text: string, parseMode: string, replyMarkup: any) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+  const body: any = {
+    chat_id: chatId,
+    text: text,
+    reply_markup: replyMarkup,
+  };
+  if (parseMode) body.parse_mode = parseMode;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.ok) console.log("rawSendMessage error:", JSON.stringify(data));
+    return data;
+  } catch (e) {
+    console.log("rawSendMessage fetch error:", (e as any).message);
+  }
+}
+
+function acceptRejectKeyboard(acceptCb: string, rejectCb: string) {
+  return {
+    inline_keyboard: [
+      [
+        styledButton("موافق", acceptCb, "success", CUSTOM_EMOJI_ACCEPT),
+        styledButton("إلغاء", rejectCb, "danger", CUSTOM_EMOJI_CANCEL),
+      ]
     ]
-  ]);
+  };
 }
 
-function acceptedButton() {
-  return styledInlineKeyboard([
-    [styledButton("تمت الموافقة", "noop_accepted", "primary", CUSTOM_EMOJI_APPROVED)]
-  ]);
+function acceptedKeyboard() {
+  return {
+    inline_keyboard: [
+      [styledButton("تمت الموافقة", "noop_accepted", "primary", CUSTOM_EMOJI_APPROVED)]
+    ]
+  };
 }
 
-function cancelledButton() {
-  return styledInlineKeyboard([
-    [styledButton("تم الإلغاء", "noop_cancelled", "danger", CUSTOM_EMOJI_CANCEL)]
-  ]);
+function cancelledKeyboard() {
+  return {
+    inline_keyboard: [
+      [styledButton("تم الإلغاء", "noop_cancelled", "danger", CUSTOM_EMOJI_CANCEL)]
+    ]
+  };
+}
+
+async function editToAccepted(ctx: any) {
+  try {
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`;
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: ctx.chat.id,
+        message_id: ctx.callbackQuery.message.message_id,
+        reply_markup: acceptedKeyboard(),
+      }),
+    });
+  } catch (e) {
+    console.log("Could not edit to accepted:", (e as any).message);
+  }
+}
+
+async function editToCancelled(ctx: any) {
+  try {
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`;
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: ctx.chat.id,
+        message_id: ctx.callbackQuery.message.message_id,
+        reply_markup: cancelledKeyboard(),
+      }),
+    });
+  } catch (e) {
+    console.log("Could not edit to cancelled:", (e as any).message);
+  }
 }
 
 async function sendTermsMessage1(ctx: Context) {
-  await ctx.reply(
+  await rawSendMessage(
+    ctx.chat!.id,
     `📋 *الشروط الأساسية للحسابات:*\n\n` +
     `1️⃣ *عدد المتابعين:* لازم حسابك الشخصي بي أكثر من *5000 متابع*.\n` +
     `2️⃣ *نوع الحساب:* حساب حقيقي، شخصي، ونشط (مو حساب وهمي أو جديد).\n` +
     `3️⃣ *المتابعين:* حصراً لازم يكون أغلب متابعينك *عراقيين*.`,
-    {
-      parse_mode: "Markdown",
-      ...acceptRejectButtons("terms1_accept", "terms1_reject"),
-    }
+    "Markdown",
+    acceptRejectKeyboard("terms1_accept", "terms1_reject"),
   );
 }
 
 async function sendTermsMessage2(ctx: Context) {
-  await ctx.reply(
+  await rawSendMessage(
+    ctx.chat!.id,
     `📌 *خطة العمل:*\n\n` +
     `بمجرد ما ننزل رابط البوست، تشوف المهام الخاصة بالبوست وتسوي:\n\n` +
     `• ❤️ *لايك (Like)* للبوست.\n` +
     `• 💬 *تعليق (Comment)* مناسب للمحتوى (تجنب التعليقات المكررة).\n` +
     `• 📤 *توجيه للخاص (Direct Share):* توجه البوست لـ 5 أشخاص (حتى لو لنفسك أو حسابات ثانوية).\n` +
     `• 📖 *توجيه ستوري (Share to Story)* مع منشن (Tag) للمشهور أو صاحب البوست.`,
-    {
-      parse_mode: "Markdown",
-      ...acceptRejectButtons("terms2_accept", "terms2_reject"),
-    }
+    "Markdown",
+    acceptRejectKeyboard("terms2_accept", "terms2_reject"),
   );
 }
 
 async function sendTermsMessage3(ctx: Context) {
-  await ctx.reply(
+  await rawSendMessage(
+    ctx.chat!.id,
     `💰 *المستحقات:*\n\n` +
     `• *الأجر:* استحقاقك هو *1000 دينار* عن كل بوست تكمل كل خطواته.\n` +
     `• *الإنتاجية:* يومياً عدنا شغل ويه مشاهير، تگدر تحصل بين *25,000 إلى 30,000 دينار* يومياً إذا كنت ملتزم ويانا بكل الروابط.\n\n` +
@@ -117,10 +178,8 @@ async function sendTermsMessage3(ctx: Context) {
     `• الحسابات اللي يتبين إنها وهمية أو متابعينها أجانب يتم استبعادها فوراً.\n` +
     `• الأولوية للي يتفاعلون بأول دقائق من نزول الرابط.\n` +
     `• إذا الطلب 250 تعليق مثلاً، أول الناس هم من يحصلون الأجور.`,
-    {
-      parse_mode: "Markdown",
-      ...acceptRejectButtons("terms3_accept", "terms3_reject"),
-    }
+    "Markdown",
+    acceptRejectKeyboard("terms3_accept", "terms3_reject"),
   );
 }
 
@@ -258,22 +317,14 @@ bot.action("terms1_accept", async (ctx) => {
   await ctx.answerCbQuery("تم القبول ✅");
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, { registrationStep: 2 });
-  try {
-    await ctx.editMessageReplyMarkup(acceptedButton().reply_markup);
-  } catch (e) {
-    console.log("Could not edit message markup (terms1):", (e as any).message);
-  }
+  await editToAccepted(ctx);
   await sendTermsMessage2(ctx);
 });
 
 bot.action("terms1_reject", async (ctx) => {
   await ctx.answerCbQuery("تم الإلغاء");
   await storage.updateMember(String(ctx.from.id), { status: "rejected", registrationStep: 0 });
-  try {
-    await ctx.editMessageReplyMarkup(cancelledButton().reply_markup);
-  } catch (e) {
-    console.log("Could not edit message markup (terms1 reject):", (e as any).message);
-  }
+  await editToCancelled(ctx);
   await ctx.reply("تم إلغاء التسجيل. يمكنك الضغط على /start للمحاولة مجدداً.");
 });
 
@@ -281,22 +332,14 @@ bot.action("terms2_accept", async (ctx) => {
   await ctx.answerCbQuery("تم القبول ✅");
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, { registrationStep: 3 });
-  try {
-    await ctx.editMessageReplyMarkup(acceptedButton().reply_markup);
-  } catch (e) {
-    console.log("Could not edit message markup (terms2):", (e as any).message);
-  }
+  await editToAccepted(ctx);
   await sendTermsMessage3(ctx);
 });
 
 bot.action("terms2_reject", async (ctx) => {
   await ctx.answerCbQuery("تم الإلغاء");
   await storage.updateMember(String(ctx.from.id), { status: "rejected", registrationStep: 0 });
-  try {
-    await ctx.editMessageReplyMarkup(cancelledButton().reply_markup);
-  } catch (e) {
-    console.log("Could not edit message markup (terms2 reject):", (e as any).message);
-  }
+  await editToCancelled(ctx);
   await ctx.reply("تم إلغاء التسجيل. يمكنك الضغط على /start للمحاولة مجدداً.");
 });
 
@@ -304,11 +347,7 @@ bot.action("terms3_accept", async (ctx) => {
   await ctx.answerCbQuery("تم القبول ✅");
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, { registrationStep: 4, status: "awaiting_info" });
-  try {
-    await ctx.editMessageReplyMarkup(acceptedButton().reply_markup);
-  } catch (e) {
-    console.log("Could not edit message markup (terms3):", (e as any).message);
-  }
+  await editToAccepted(ctx);
   await ctx.reply(
     `ممتاز! 🎉\n\nالآن أرسل لنا:\n\n` +
     `1️⃣ رابط حسابك على انستجرام\n` +
@@ -321,11 +360,7 @@ bot.action("terms3_accept", async (ctx) => {
 bot.action("terms3_reject", async (ctx) => {
   await ctx.answerCbQuery("تم الإلغاء");
   await storage.updateMember(String(ctx.from.id), { status: "rejected", registrationStep: 0 });
-  try {
-    await ctx.editMessageReplyMarkup(cancelledButton().reply_markup);
-  } catch (e) {
-    console.log("Could not edit message markup (terms3 reject):", (e as any).message);
-  }
+  await editToCancelled(ctx);
   await ctx.reply("تم إلغاء التسجيل. يمكنك الضغط على /start للمحاولة مجدداً.");
 });
 
