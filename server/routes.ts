@@ -35,9 +35,13 @@ export async function registerRoutes(
 
   app.post("/api/login", (req, res) => {
     const { code } = req.body;
-    if (code?.trim() === ACCESS_CODE) {
+    const incoming = code?.trim() ?? "";
+    console.log(`[LOGIN] incoming="${incoming}" expected="${ACCESS_CODE}" match=${incoming === ACCESS_CODE}`);
+    if (incoming === ACCESS_CODE) {
       req.session.authenticated = true;
-      res.json({ success: true });
+      req.session.save(() => {
+        res.json({ success: true });
+      });
     } else {
       res.status(401).json({ error: "رمز خاطئ" });
     }
