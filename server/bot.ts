@@ -39,9 +39,19 @@ const TASK_LABELS: Record<string, string> = {
   explore: "حركة الاكسبلور - توجيه للخاص (Direct Share)",
 };
 
-function styledButton(text: string, callbackData: string, style?: string) {
+const CUSTOM_EMOJI_ACCEPT = "4956454790012863177";
+const CUSTOM_EMOJI_CANCEL = "5287527086985069121";
+const CUSTOM_EMOJI_APPROVED = "5985446383388204349";
+
+const EMOJI_PLACEHOLDER = "\u2705";
+
+function styledButton(text: string, callbackData: string, style?: string, customEmojiId?: string) {
   const btn: any = { text, callback_data: callbackData };
   if (style) btn.style = style;
+  if (customEmojiId) {
+    btn.text = EMOJI_PLACEHOLDER + " " + text;
+    btn.text_entities = [{ type: "custom_emoji", offset: 0, length: 1, custom_emoji_id: customEmojiId }];
+  }
   return btn;
 }
 
@@ -52,21 +62,21 @@ function styledInlineKeyboard(rows: any[][]) {
 function acceptRejectButtons(acceptCb: string, rejectCb: string) {
   return styledInlineKeyboard([
     [
-      styledButton("موافق", acceptCb, "success"),
-      styledButton("إلغاء", rejectCb, "danger"),
+      styledButton("موافق", acceptCb, "success", CUSTOM_EMOJI_ACCEPT),
+      styledButton("إلغاء", rejectCb, "danger", CUSTOM_EMOJI_CANCEL),
     ]
   ]);
 }
 
 function acceptedButton() {
   return styledInlineKeyboard([
-    [styledButton("تمت الموافقة", "noop_accepted", "primary")]
+    [styledButton("تمت الموافقة", "noop_accepted", "primary", CUSTOM_EMOJI_APPROVED)]
   ]);
 }
 
 function cancelledButton() {
   return styledInlineKeyboard([
-    [styledButton("تم الإلغاء", "noop_cancelled", "danger")]
+    [styledButton("تم الإلغاء", "noop_cancelled", "danger", CUSTOM_EMOJI_CANCEL)]
   ]);
 }
 
