@@ -52,21 +52,21 @@ function styledInlineKeyboard(rows: any[][]) {
 function acceptRejectButtons(acceptCb: string, rejectCb: string) {
   return styledInlineKeyboard([
     [
-      styledButton("✅ موافق", acceptCb, "success"),
-      styledButton("❌ إلغاء", rejectCb, "danger"),
+      styledButton("موافق", acceptCb, "success"),
+      styledButton("إلغاء", rejectCb, "danger"),
     ]
   ]);
 }
 
 function acceptedButton() {
   return styledInlineKeyboard([
-    [styledButton("✅ تمت الموافقة", "noop_accepted", "primary")]
+    [styledButton("تمت الموافقة", "noop_accepted", "primary")]
   ]);
 }
 
 function cancelledButton() {
   return styledInlineKeyboard([
-    [styledButton("❌ تم الإلغاء", "noop_cancelled", "danger")]
+    [styledButton("تم الإلغاء", "noop_cancelled", "danger")]
   ]);
 }
 
