@@ -416,7 +416,6 @@ bot.action("withdraw_funds", async (ctx) => {
       inline_keyboard: [
         [styledButton("اسياسيل", "withdraw_method_asiacell", "success", CUSTOM_EMOJI_ASIACELL)],
         [styledButton("زين كاش", "withdraw_method_zaincash", "primary", CUSTOM_EMOJI_ZAINCASH)],
-        [styledButton("ماستر كارد", "withdraw_method_mastercard", "primary", CUSTOM_EMOJI_MASTERCARD)],
       ]
     }
   );
