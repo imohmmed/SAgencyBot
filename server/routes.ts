@@ -1,16 +1,53 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import session from "express-session";
 import { storage } from "./storage";
 import { startBot, sendTaskToMember, approveMember, rejectMember, approvePayment } from "./bot";
 import { insertTaskSchema } from "@shared/schema";
+
+const ACCESS_CODE = process.env.ACCESS_CODE || "hdhshsh8817";
+
+declare module "express-session" {
+  interface SessionData {
+    authenticated: boolean;
+  }
+}
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.session?.authenticated) {
+    return next();
+  }
+  res.status(401).json({ error: "unauthorized" });
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  app.use(session({
+    secret: process.env.SESSION_SECRET || "bot-session-secret-key",
+    resave: false,
+    saveUninitialized: false,
+    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
+  }));
+
   startBot();
 
-  app.get("/api/stats", async (req, res) => {
+  app.post("/api/login", (req, res) => {
+    const { code } = req.body;
+    if (code === ACCESS_CODE) {
+      req.session.authenticated = true;
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ error: "رمز خاطئ" });
+    }
+  });
+
+  app.get("/api/auth/check", (req, res) => {
+    res.json({ authenticated: !!req.session?.authenticated });
+  });
+
+  app.get("/api/stats", requireAuth, async (req, res) => {
     try {
       const stats = await storage.getStats();
       res.json(stats);
@@ -19,7 +56,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/members", async (req, res) => {
+  app.get("/api/members", requireAuth, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       const members = status
@@ -31,7 +68,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/members/:telegramId/approve", async (req, res) => {
+  app.patch("/api/members/:telegramId/approve", requireAuth, async (req, res) => {
     try {
       await approveMember(req.params.telegramId);
       res.json({ success: true });
@@ -40,7 +77,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/members/:telegramId/reject", async (req, res) => {
+  app.patch("/api/members/:telegramId/reject", requireAuth, async (req, res) => {
     try {
       await rejectMember(req.params.telegramId);
       res.json({ success: true });
@@ -49,7 +86,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/tasks", async (req, res) => {
+  app.get("/api/tasks", requireAuth, async (req, res) => {
     try {
       const tasks = await storage.getAllTasks();
       res.json(tasks);
@@ -58,7 +95,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/tasks", async (req, res) => {
+  app.post("/api/tasks", requireAuth, async (req, res) => {
     try {
       const data = insertTaskSchema.parse(req.body);
       const task = await storage.createTask(data);
@@ -68,7 +105,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/tasks/send-all", async (req, res) => {
+  app.post("/api/tasks/send-all", requireAuth, async (req, res) => {
     try {
       const { postLink, taskTypes, price, notes } = req.body;
       if (!postLink || !taskTypes || !price) {
@@ -94,7 +131,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/tasks/:id/send", async (req, res) => {
+  app.post("/api/tasks/:id/send", requireAuth, async (req, res) => {
     try {
       const taskId = parseInt(req.params.id);
       const { telegramId } = req.body;
@@ -108,7 +145,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/tasks/:id", async (req, res) => {
+  app.delete("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
       const taskId = parseInt(req.params.id);
       await storage.deleteTask(taskId);
@@ -118,7 +155,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/submissions", async (req, res) => {
+  app.get("/api/submissions", requireAuth, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       const subs = status
@@ -130,7 +167,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/submissions/:id/approve", async (req, res) => {
+  app.patch("/api/submissions/:id/approve", requireAuth, async (req, res) => {
     try {
       await approvePayment(parseInt(req.params.id));
       res.json({ success: true });
@@ -139,7 +176,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/submissions/:id/reject", async (req, res) => {
+  app.patch("/api/submissions/:id/reject", requireAuth, async (req, res) => {
     try {
       const sub = await storage.updateSubmission(parseInt(req.params.id), { status: "rejected" });
       res.json({ success: true, sub });
