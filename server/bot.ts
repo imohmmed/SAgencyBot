@@ -3,7 +3,7 @@ import { storage, db } from "./storage";
 import { sql } from "drizzle-orm";
 import type { Context } from "telegraf";
 
-const BOT_TOKEN = process.env.BOT_TOKEN || "8516006670:AAF8bry6k6RYVPFfguhRmpp0NNhH5HYYOV4";
+const BOT_TOKEN = process.env.BOT_TOKEN || "8516006670:AAFor6I8npwi-ILRfZ1S9_3vLTLVchr5nzg";
 const OWNER_ID = parseInt(process.env.OWNER_ID || "1384026800");
 
 let APPROVAL_GROUP_ID: number | null = null;
