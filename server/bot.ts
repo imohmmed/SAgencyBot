@@ -242,8 +242,12 @@ bot.start(async (ctx) => {
   }
 
   if (existing && existing.status === "rejected") {
-    await ctx.reply("❌ تم رفض طلبك. للاستفسار تواصل مع الإدارة.");
-    return;
+    await storage.updateMember(telegramId, {
+      status: "onboarding",
+      registrationStep: 1,
+      accountLink: null,
+      screenshotFileId: null,
+    });
   }
 
   if (!existing) {
