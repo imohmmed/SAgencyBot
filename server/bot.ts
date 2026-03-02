@@ -103,6 +103,45 @@ function cancelledKeyboard() {
   };
 }
 
+async function rawSendPhoto(chatId: number | string, photo: string, caption: string, replyMarkup: any) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
+  const body: any = {
+    chat_id: chatId,
+    photo: photo,
+    caption: caption,
+    reply_markup: replyMarkup,
+  };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.ok) console.log("rawSendPhoto error:", JSON.stringify(data));
+    return data;
+  } catch (e) {
+    console.log("rawSendPhoto fetch error:", (e as any).message);
+  }
+}
+
+async function rawEditMarkup(chatId: number | string, messageId: number, replyMarkup: any) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: replyMarkup,
+      }),
+    });
+  } catch (e) {
+    console.log("rawEditMarkup error:", (e as any).message);
+  }
+}
+
 async function editToAccepted(ctx: any) {
   try {
     const url = `https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`;
@@ -397,34 +436,28 @@ bot.on("photo", async (ctx) => {
       registrationStep: 6,
     });
 
-    if (APPROVAL_GROUP_ID) {
-      try {
-        await bot.telegram.sendMessage(
-          APPROVAL_GROUP_ID,
-          `🆕 طلب انضمام جديد\n\n` +
-          `👤 الاسم: ${member.firstName || ""} ${member.lastName || ""}\n` +
-          `🔗 يوزر: @${member.username || "بدون يوزر"}\n` +
-          `📱 ID: ${telegramId}\n` +
-          `🌐 الحساب: ${member.accountLink}`
-        );
-        await bot.telegram.sendPhoto(APPROVAL_GROUP_ID, fileId, {
-          caption: `📸 سكرين شوت الحساب - ID: ${telegramId}\n\nللموافقة: /approve_${telegramId}\nللرفض: /reject_${telegramId}`,
-        });
-      } catch (e) {
-        console.log("Could not send to approval group:", e);
-      }
-    } else {
-      try {
-        await bot.telegram.sendMessage(OWNER_ID,
-          `🆕 طلب انضمام جديد (المجموعة غير معيّنة)\n\n` +
-          `👤 ${member.firstName || ""} @${member.username || "بدون يوزر"}\n` +
-          `📱 ID: ${telegramId}\n` +
-          `🌐 ${member.accountLink}\n\n` +
-          `⚠️ أرسل /setapproval في مجموعة الموافقة لتفعيل الإرسال التلقائي`
-        );
-      } catch (e) {
-        console.log("Could not notify owner:", e);
-      }
+    const targetGroupId = APPROVAL_GROUP_ID || OWNER_ID;
+    try {
+      const caption =
+        `🆕 طلب انضمام جديد\n\n` +
+        `👤 الاسم: ${member.firstName || ""} ${member.lastName || ""}\n` +
+        `🔗 يوزر: @${member.username || "بدون يوزر"}\n` +
+        `📱 ID: ${telegramId}\n` +
+        `🌐 الحساب: ${member.accountLink}`;
+
+      const approvalKeyboard = {
+        inline_keyboard: [
+          [{ text: "📱 فتح الحساب", url: member.accountLink || `https://instagram.com/${member.username || ""}` }],
+          [
+            styledButton("موافقة", `grp_approve_${telegramId}`, "success", CUSTOM_EMOJI_ACCEPT),
+            styledButton("رفض", `grp_reject_${telegramId}`, "danger", CUSTOM_EMOJI_CANCEL),
+          ]
+        ]
+      };
+
+      await rawSendPhoto(targetGroupId, fileId, caption, approvalKeyboard);
+    } catch (e) {
+      console.log("Could not send to approval group:", e);
     }
 
     await ctx.reply(
@@ -485,6 +518,40 @@ bot.on("photo", async (ctx) => {
       }
     }
   }
+});
+
+bot.action(/^grp_approve_(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery("تمت الموافقة ✅");
+  const telegramId = ctx.match[1];
+  const member = await storage.getMember(telegramId);
+  if (!member) return;
+
+  const accountUrl = member.accountLink || `https://instagram.com/${member.username || ""}`;
+  const approvedMarkup = {
+    inline_keyboard: [
+      [{ text: "📱 فتح الحساب", url: accountUrl }],
+      [styledButton("تمت الموافقة", "noop_accepted", "primary", CUSTOM_EMOJI_APPROVED)],
+    ]
+  };
+  await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, approvedMarkup);
+  await approveViaBot(telegramId);
+});
+
+bot.action(/^grp_reject_(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery("تم الرفض");
+  const telegramId = ctx.match[1];
+  const member = await storage.getMember(telegramId);
+  if (!member) return;
+
+  const accountUrl = member.accountLink || `https://instagram.com/${member.username || ""}`;
+  const rejectedMarkup = {
+    inline_keyboard: [
+      [{ text: "📱 فتح الحساب", url: accountUrl }],
+      [styledButton("تم الرفض", "noop_cancelled", "danger", CUSTOM_EMOJI_CANCEL)],
+    ]
+  };
+  await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, rejectedMarkup);
+  await rejectMember(telegramId);
 });
 
 bot.action(/^complete_task_(\d+)$/, async (ctx) => {
