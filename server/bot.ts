@@ -4,8 +4,8 @@ import type { Context } from "telegraf";
 
 const BOT_TOKEN = "8516006670:AAF8bry6k6RYVPFfguhRmpp0NNhH5HYYOV4";
 const OWNER_ID = 1384026800;
-const APPROVAL_GROUP = "@" + "C9Qk7j81KSdiODM6";
-const PAYMENT_GROUP = "@" + "wWAHO42c4wFiZTJi";
+const APPROVAL_GROUP_ID = -1002547447878;
+const PAYMENT_GROUP_ID = -1001956258658;
 
 export const bot = new Telegraf(BOT_TOKEN);
 
@@ -16,11 +16,35 @@ const TASK_LABELS: Record<string, string> = {
   explore: "حركة الاكسبلور - توجيه للخاص (Direct Share)",
 };
 
-function getTaskDescription(taskTypes: string[], commentCount?: number) {
-  return taskTypes.map(t => {
-    if (t === "comment" && commentCount) return `${commentCount} تعليق (Comment)`;
-    return TASK_LABELS[t] || t;
-  }).join("\n• ");
+function styledButton(text: string, callbackData: string, style?: string) {
+  const btn: any = { text, callback_data: callbackData };
+  if (style) btn.style = style;
+  return btn;
+}
+
+function styledInlineKeyboard(rows: any[][]) {
+  return { reply_markup: { inline_keyboard: rows } };
+}
+
+function acceptRejectButtons(acceptCb: string, rejectCb: string) {
+  return styledInlineKeyboard([
+    [
+      styledButton("✅ موافق", acceptCb, "success"),
+      styledButton("❌ إلغاء", rejectCb, "danger"),
+    ]
+  ]);
+}
+
+function acceptedButton() {
+  return styledInlineKeyboard([
+    [styledButton("✅ تمت الموافقة", "noop_accepted", "primary")]
+  ]);
+}
+
+function cancelledButton() {
+  return styledInlineKeyboard([
+    [styledButton("❌ تم الإلغاء", "noop_cancelled", "danger")]
+  ]);
 }
 
 async function sendTermsMessage1(ctx: Context) {
@@ -31,12 +55,7 @@ async function sendTermsMessage1(ctx: Context) {
     `3️⃣ *المتابعين:* حصراً لازم يكون أغلب متابعينك *عراقيين*.`,
     {
       parse_mode: "Markdown",
-      ...Markup.inlineKeyboard([
-        [
-          Markup.button.callback("✅ موافق", "terms1_accept"),
-          Markup.button.callback("❌ إلغاء", "terms1_reject"),
-        ]
-      ])
+      ...acceptRejectButtons("terms1_accept", "terms1_reject"),
     }
   );
 }
@@ -51,12 +70,7 @@ async function sendTermsMessage2(ctx: Context) {
     `• 📖 *توجيه ستوري (Share to Story)* مع منشن (Tag) للمشهور أو صاحب البوست.`,
     {
       parse_mode: "Markdown",
-      ...Markup.inlineKeyboard([
-        [
-          Markup.button.callback("✅ موافق", "terms2_accept"),
-          Markup.button.callback("❌ إلغاء", "terms2_reject"),
-        ]
-      ])
+      ...acceptRejectButtons("terms2_accept", "terms2_reject"),
     }
   );
 }
@@ -65,19 +79,14 @@ async function sendTermsMessage3(ctx: Context) {
   await ctx.reply(
     `💰 *المستحقات:*\n\n` +
     `• *الأجر:* استحقاقك هو *1000 دينار* عن كل بوست تكمل كل خطواته.\n` +
-    `• *الإنتاجية:* يومياً عدنا شغل ويه مشاهير، تگدر تحصل بين *25,000$ إلى 30,000 دينار* يومياً إذا كنت ملتزم ويانا بكل الروابط.\n\n` +
+    `• *الإنتاجية:* يومياً عدنا شغل ويه مشاهير، تگدر تحصل بين *25,000 إلى 30,000 دينار* يومياً إذا كنت ملتزم ويانا بكل الروابط.\n\n` +
     `⚠️ *ملاحظات مهمة:*\n` +
     `• الحسابات اللي يتبين إنها وهمية أو متابعينها أجانب يتم استبعادها فوراً.\n` +
     `• الأولوية للي يتفاعلون بأول دقائق من نزول الرابط.\n` +
     `• إذا الطلب 250 تعليق مثلاً، أول الناس هم من يحصلون الأجور.`,
     {
       parse_mode: "Markdown",
-      ...Markup.inlineKeyboard([
-        [
-          Markup.button.callback("✅ موافق وأبدأ", "terms3_accept"),
-          Markup.button.callback("❌ إلغاء", "terms3_reject"),
-        ]
-      ])
+      ...acceptRejectButtons("terms3_accept", "terms3_reject"),
     }
   );
 }
@@ -126,16 +135,34 @@ bot.start(async (ctx) => {
   await sendTermsMessage1(ctx);
 });
 
+bot.action("noop_accepted", async (ctx) => {
+  await ctx.answerCbQuery("تمت الموافقة مسبقاً ✅");
+});
+
+bot.action("noop_cancelled", async (ctx) => {
+  await ctx.answerCbQuery("تم الإلغاء مسبقاً");
+});
+
 bot.action("terms1_accept", async (ctx) => {
   await ctx.answerCbQuery("تم القبول ✅");
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, { registrationStep: 2 });
+  try {
+    await ctx.editMessageReplyMarkup(acceptedButton().reply_markup);
+  } catch (e) {
+    console.log("Could not edit message markup (terms1):", (e as any).message);
+  }
   await sendTermsMessage2(ctx);
 });
 
 bot.action("terms1_reject", async (ctx) => {
   await ctx.answerCbQuery("تم الإلغاء");
   await storage.updateMember(String(ctx.from.id), { status: "rejected", registrationStep: 0 });
+  try {
+    await ctx.editMessageReplyMarkup(cancelledButton().reply_markup);
+  } catch (e) {
+    console.log("Could not edit message markup (terms1 reject):", (e as any).message);
+  }
   await ctx.reply("تم إلغاء التسجيل. يمكنك الضغط على /start للمحاولة مجدداً.");
 });
 
@@ -143,12 +170,22 @@ bot.action("terms2_accept", async (ctx) => {
   await ctx.answerCbQuery("تم القبول ✅");
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, { registrationStep: 3 });
+  try {
+    await ctx.editMessageReplyMarkup(acceptedButton().reply_markup);
+  } catch (e) {
+    console.log("Could not edit message markup (terms2):", (e as any).message);
+  }
   await sendTermsMessage3(ctx);
 });
 
 bot.action("terms2_reject", async (ctx) => {
   await ctx.answerCbQuery("تم الإلغاء");
   await storage.updateMember(String(ctx.from.id), { status: "rejected", registrationStep: 0 });
+  try {
+    await ctx.editMessageReplyMarkup(cancelledButton().reply_markup);
+  } catch (e) {
+    console.log("Could not edit message markup (terms2 reject):", (e as any).message);
+  }
   await ctx.reply("تم إلغاء التسجيل. يمكنك الضغط على /start للمحاولة مجدداً.");
 });
 
@@ -156,6 +193,11 @@ bot.action("terms3_accept", async (ctx) => {
   await ctx.answerCbQuery("تم القبول ✅");
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, { registrationStep: 4, status: "awaiting_info" });
+  try {
+    await ctx.editMessageReplyMarkup(acceptedButton().reply_markup);
+  } catch (e) {
+    console.log("Could not edit message markup (terms3):", (e as any).message);
+  }
   await ctx.reply(
     `ممتاز! 🎉\n\nالآن أرسل لنا:\n\n` +
     `1️⃣ رابط حسابك على انستجرام\n` +
@@ -168,6 +210,11 @@ bot.action("terms3_accept", async (ctx) => {
 bot.action("terms3_reject", async (ctx) => {
   await ctx.answerCbQuery("تم الإلغاء");
   await storage.updateMember(String(ctx.from.id), { status: "rejected", registrationStep: 0 });
+  try {
+    await ctx.editMessageReplyMarkup(cancelledButton().reply_markup);
+  } catch (e) {
+    console.log("Could not edit message markup (terms3 reject):", (e as any).message);
+  }
   await ctx.reply("تم إلغاء التسجيل. يمكنك الضغط على /start للمحاولة مجدداً.");
 });
 
@@ -211,7 +258,7 @@ bot.on("photo", async (ctx) => {
 
     try {
       await bot.telegram.sendMessage(
-        -1002547447878,
+        APPROVAL_GROUP_ID,
         `🆕 *طلب انضمام جديد*\n\n` +
         `👤 الاسم: ${member.firstName || ""} ${member.lastName || ""}\n` +
         `🔗 يوزر: @${member.username || "بدون يوزر"}\n` +
@@ -219,7 +266,7 @@ bot.on("photo", async (ctx) => {
         `🌐 الحساب: ${member.accountLink}`,
         { parse_mode: "Markdown" }
       );
-      await bot.telegram.sendPhoto(-1002547447878, fileId, {
+      await bot.telegram.sendPhoto(APPROVAL_GROUP_ID, fileId, {
         caption: `📸 سكرين شوت الحساب - ID: ${telegramId}\n\nللموافقة: /approve_${telegramId}\nللرفض: /reject_${telegramId}`,
       });
     } catch (e) {
@@ -255,7 +302,7 @@ bot.on("photo", async (ctx) => {
 
         try {
           await bot.telegram.sendMessage(
-            -1001956258658,
+            PAYMENT_GROUP_ID,
             `✅ *إكمال مهمة*\n\n` +
             `👤 ${member.firstName || ""} @${member.username || member.telegramId}\n` +
             `🔗 الرابط: ${pendingTask.postLink}\n` +
@@ -264,9 +311,9 @@ bot.on("photo", async (ctx) => {
             { parse_mode: "Markdown" }
           );
           if (existingSub.workScreenshotFileId) {
-            await bot.telegram.sendPhoto(-1001956258658, existingSub.workScreenshotFileId, { caption: "سكرين العمل" });
+            await bot.telegram.sendPhoto(PAYMENT_GROUP_ID, existingSub.workScreenshotFileId, { caption: "سكرين العمل" });
           }
-          await bot.telegram.sendPhoto(-1001956258658, fileId, { caption: "سكرين الحساب" });
+          await bot.telegram.sendPhoto(PAYMENT_GROUP_ID, fileId, { caption: "سكرين الحساب" });
         } catch (e) {
           console.log("Could not send to payment group:", e);
         }
@@ -299,6 +346,16 @@ bot.action(/^complete_task_(\d+)$/, async (ctx) => {
     });
   }
 
+  try {
+    await ctx.editMessageReplyMarkup(
+      styledInlineKeyboard([
+        [styledButton("📸 جاري إرسال الإثبات...", "noop_accepted", "primary")]
+      ]).reply_markup
+    );
+  } catch (e) {
+    console.log("Could not edit task button:", (e as any).message);
+  }
+
   await storage.updateMember(telegramId, { registrationStep: 10 });
   await ctx.reply(
     `✅ ممتاز! لإثبات إنجاز المهمة:\n\n` +
@@ -306,7 +363,7 @@ bot.action(/^complete_task_(\d+)$/, async (ctx) => {
   );
 });
 
-async function approveViaBot(telegramId: string, approverCtx: any) {
+async function approveViaBot(telegramId: string) {
   await storage.updateMember(telegramId, {
     status: "approved",
     approvedAt: new Date(),
@@ -330,7 +387,7 @@ export async function sendTaskToMember(telegramId: string, taskId: number) {
   if (!task) return;
 
   const taskList = task.taskTypes.map(t => `• ${TASK_LABELS[t] || t}`).join("\n");
-  const priceText = task.price === 1000 ? "1000 دينار (كل المهام)" : "500 دينار (مهام جزئية)";
+  const priceText = task.price === 1000 ? "1000 دينار (كل المهام)" : `${task.price} دينار`;
 
   try {
     await bot.telegram.sendMessage(
@@ -342,9 +399,9 @@ export async function sendTaskToMember(telegramId: string, taskId: number) {
       `⚡ أنجز المهمة بأسرع وقت للحصول على الأجر!`,
       {
         parse_mode: "Markdown",
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback("✅ تم إكمال المهام", `complete_task_${taskId}`)]
-        ])
+        ...styledInlineKeyboard([
+          [styledButton("✅ تم إكمال المهام", `complete_task_${taskId}`, "success")]
+        ]),
       }
     );
 
@@ -357,7 +414,7 @@ export async function sendTaskToMember(telegramId: string, taskId: number) {
 }
 
 export async function approveMember(telegramId: string) {
-  return approveViaBot(telegramId, null);
+  return approveViaBot(telegramId);
 }
 
 export async function rejectMember(telegramId: string) {
