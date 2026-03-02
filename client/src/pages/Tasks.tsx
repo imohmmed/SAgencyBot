@@ -51,11 +51,25 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
   const [postLink, setPostLink] = useState("");
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [commentCount, setCommentCount] = useState("10");
-  const [selectedMember, setSelectedMember] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [sendToAll, setSendToAll] = useState(false);
   const [price, setPrice] = useState("1000");
   const [notes, setNotes] = useState("");
 
   const approvedMembers = members.filter(m => m.status === "approved");
+
+  const toggleMember = (telegramId: string) => {
+    setSelectedMembers(prev =>
+      prev.includes(telegramId) ? prev.filter(id => id !== telegramId) : [...prev, telegramId]
+    );
+  };
+
+  const handleSendToAllChange = (checked: boolean) => {
+    setSendToAll(checked);
+    if (checked) setSelectedMembers([]);
+  };
+
+  const canSubmit = postLink && selectedTasks.length > 0 && (sendToAll || selectedMembers.length > 0);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -64,7 +78,7 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
         return t;
       });
 
-      if (selectedMember === "__all__") {
+      if (sendToAll) {
         const res = await apiRequest("POST", "/api/tasks/send-all", {
           postLink,
           taskTypes: taskTypesToSend,
@@ -73,18 +87,14 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
         });
         return await res.json();
       } else {
-        const res = await apiRequest("POST", "/api/tasks", {
+        const res = await apiRequest("POST", "/api/tasks/send-selected", {
           postLink,
           taskTypes: taskTypesToSend,
           price: parseInt(price),
-          assignedTo: selectedMember || null,
           notes: notes || undefined,
+          telegramIds: selectedMembers,
         });
-        const task = await res.json();
-        if (selectedMember) {
-          await apiRequest("POST", `/api/tasks/${task.id}/send`, { telegramId: selectedMember });
-        }
-        return task;
+        return await res.json();
       }
     },
     onSuccess: (data: any) => {
@@ -97,7 +107,8 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
       setOpen(false);
       setPostLink("");
       setSelectedTasks([]);
-      setSelectedMember("");
+      setSelectedMembers([]);
+      setSendToAll(false);
       setPrice("1000");
       setNotes("");
     },
@@ -109,8 +120,6 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
       prev.includes(taskId) ? prev.filter(t => t !== taskId) : [...prev, taskId]
     );
   };
-
-  const allTasks = selectedTasks.length === TASK_OPTIONS.length;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -211,26 +220,50 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="member-select">إرسال إلى</Label>
-            <Select onValueChange={setSelectedMember} value={selectedMember}>
-              <SelectTrigger data-testid="select-member">
-                <SelectValue placeholder="اختر عضو..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">جميع الأعضاء ({approvedMembers.length})</SelectItem>
-                {approvedMembers.map(m => (
-                  <SelectItem key={m.telegramId} value={m.telegramId}>
+            <div className="flex items-center justify-between">
+              <Label>إرسال إلى</Label>
+              {!sendToAll && selectedMembers.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {selectedMembers.length} مختار
+                </span>
+              )}
+            </div>
+            <div className="border rounded-md p-3 space-y-2 max-h-44 overflow-y-auto">
+              <div className="flex items-center gap-2 pb-2 border-b">
+                <Checkbox
+                  id="all-members"
+                  checked={sendToAll}
+                  onCheckedChange={(v) => handleSendToAllChange(!!v)}
+                  data-testid="checkbox-all-members"
+                />
+                <label htmlFor="all-members" className="text-sm font-medium cursor-pointer">
+                  جميع الأعضاء ({approvedMembers.length})
+                </label>
+              </div>
+              {approvedMembers.map(m => (
+                <div key={m.telegramId} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`member-${m.telegramId}`}
+                    checked={!sendToAll && selectedMembers.includes(m.telegramId)}
+                    onCheckedChange={() => { setSendToAll(false); toggleMember(m.telegramId); }}
+                    disabled={sendToAll}
+                    data-testid={`checkbox-member-${m.telegramId}`}
+                  />
+                  <label
+                    htmlFor={`member-${m.telegramId}`}
+                    className={`text-sm cursor-pointer ${sendToAll ? "text-muted-foreground" : ""}`}
+                  >
                     {m.firstName || m.username || m.telegramId}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  </label>
+                </div>
+              ))}
+            </div>
           </div>
 
           <Button
             className="w-full"
             onClick={() => createMutation.mutate()}
-            disabled={!postLink || selectedTasks.length === 0 || createMutation.isPending}
+            disabled={!canSubmit || createMutation.isPending}
             data-testid="button-submit-task"
           >
             <Send className="w-4 h-4 mr-2" />

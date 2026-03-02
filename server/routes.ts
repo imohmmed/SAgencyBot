@@ -31,7 +31,9 @@ export async function registerRoutes(
     cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
   }));
 
-  startBot();
+  if (process.env.NODE_ENV !== "development") {
+    startBot();
+  }
 
   app.post("/api/login", (req, res) => {
     const { code } = req.body;
@@ -130,6 +132,31 @@ export async function registerRoutes(
         if (sent) sentCount++;
       }
       res.json({ sentCount, total: approvedMembers.length });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/tasks/send-selected", requireAuth, async (req, res) => {
+    try {
+      const { postLink, taskTypes, price, notes, telegramIds } = req.body;
+      if (!postLink || !taskTypes || !price || !Array.isArray(telegramIds) || telegramIds.length === 0) {
+        return res.status(400).json({ error: "postLink, taskTypes, price, telegramIds required" });
+      }
+      let sentCount = 0;
+      for (const telegramId of telegramIds) {
+        const task = await storage.createTask({
+          postLink,
+          taskTypes,
+          price,
+          notes: notes || null,
+          assignedTo: telegramId,
+          status: "pending",
+        });
+        const sent = await sendTaskToMember(telegramId, task.id);
+        if (sent) sentCount++;
+      }
+      res.json({ sentCount, total: telegramIds.length });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
