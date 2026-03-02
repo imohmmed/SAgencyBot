@@ -363,7 +363,7 @@ bot.command("status", async (ctx) => {
 });
 
 bot.action("my_tasks", async (ctx) => {
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const telegramId = String(ctx.from.id);
   const member = await storage.getMember(telegramId);
   if (!member || member.status !== "approved") return;
@@ -396,7 +396,7 @@ bot.action("my_tasks", async (ctx) => {
 });
 
 bot.action("withdraw_funds", async (ctx) => {
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const telegramId = String(ctx.from.id);
   const member = await storage.getMember(telegramId);
   if (!member || member.status !== "approved") return;
@@ -422,7 +422,7 @@ bot.action("withdraw_funds", async (ctx) => {
 });
 
 bot.action(/^withdraw_method_(.+)$/, async (ctx) => {
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const telegramId = String(ctx.from.id);
   const member = await storage.getMember(telegramId);
   if (!member || member.status !== "approved" || member.balance < 5000) return;
@@ -443,7 +443,7 @@ bot.action(/^withdraw_method_(.+)$/, async (ctx) => {
 });
 
 bot.action("submit_another_account", async (ctx) => {
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, {
     status: "awaiting_info",
@@ -462,14 +462,14 @@ bot.action("submit_another_account", async (ctx) => {
 
 bot.action("admin_send_task", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   ownerState.action = "awaiting_task_link";
   await ctx.reply("📎 أرسل رابط البوست (Instagram link):");
 });
 
 bot.action("admin_stats", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const stats = await storage.getStats();
   const allMembers = await storage.getAllMembers();
   const approved = allMembers.filter(m => m.status === "approved");
@@ -488,7 +488,7 @@ bot.action("admin_stats", async (ctx) => {
 
 bot.action("admin_payment_stats", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const stats = await storage.getStats();
   const allMembers = await storage.getAllMembers();
   const approved = allMembers.filter(m => m.status === "approved");
@@ -506,35 +506,35 @@ bot.action("admin_payment_stats", async (ctx) => {
 
 bot.action("admin_add_money", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   ownerState.action = "awaiting_add_money_id";
   await ctx.reply("💰 أرسل ID المستخدم الذي تريد إضافة أموال له:");
 });
 
 bot.action("admin_remove_money", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   ownerState.action = "awaiting_remove_money_id";
   await ctx.reply("💸 أرسل ID المستخدم الذي تريد حذف أموال منه:");
 });
 
 bot.action("admin_check_balance", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   ownerState.action = "awaiting_check_id";
   await ctx.reply("🔍 أرسل ID المستخدم للكشف عن رصيده:");
 });
 
 bot.action("admin_ban_user", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   ownerState.action = "awaiting_ban_id";
   await ctx.reply("⛔ أرسل ID المستخدم الذي تريد حظره:");
 });
 
 bot.action(/^task_type_(.+)$/, async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const type = ctx.match[1];
 
   if (!ownerState.data?.postLink) {
@@ -588,7 +588,7 @@ bot.action(/^task_type_(.+)$/, async (ctx) => {
 
 bot.action("admin_interaction_stats", async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const allTasks = await storage.getAllTasks();
   const sentTasks = allTasks.filter(t => t.status === "sent" || t.status === "completed");
   const allSubs = await storage.getAllSubmissions();
@@ -614,7 +614,7 @@ bot.action("admin_interaction_stats", async (ctx) => {
 });
 
 bot.action(/^pay_approve_(\d+)$/, async (ctx) => {
-  await ctx.answerCbQuery("تمت الموافقة ✅");
+  try { await ctx.answerCbQuery("تمت الموافقة ✅"); } catch {}
   const submissionId = parseInt(ctx.match[1]);
   const sub = await storage.getSubmissionById(submissionId);
   if (!sub || sub.status === "approved") return;
@@ -647,7 +647,7 @@ bot.action(/^pay_approve_(\d+)$/, async (ctx) => {
 });
 
 bot.action(/^pay_reject_(\d+)$/, async (ctx) => {
-  await ctx.answerCbQuery("تم الإلغاء");
+  try { await ctx.answerCbQuery("تم الإلغاء"); } catch {}
   const submissionId = parseInt(ctx.match[1]);
   const sub = await storage.getSubmissionById(submissionId);
   if (!sub || sub.status === "approved" || sub.status === "rejected") return;
@@ -675,7 +675,7 @@ bot.action(/^pay_reject_(\d+)$/, async (ctx) => {
 });
 
 bot.action(/^wd_approve_(.+)$/, async (ctx) => {
-  await ctx.answerCbQuery("تمت الموافقة ✅");
+  try { await ctx.answerCbQuery("تمت الموافقة ✅"); } catch {}
   const withdrawId = ctx.match[1];
   const wd = withdrawalRequests[withdrawId];
   if (!wd) return;
@@ -708,7 +708,7 @@ bot.action(/^wd_approve_(.+)$/, async (ctx) => {
 });
 
 bot.action(/^wd_reject_(.+)$/, async (ctx) => {
-  await ctx.answerCbQuery("تم الإلغاء");
+  try { await ctx.answerCbQuery("تم الإلغاء"); } catch {}
   const withdrawId = ctx.match[1];
   const wd = withdrawalRequests[withdrawId];
   if (!wd) return;
@@ -732,15 +732,15 @@ bot.action(/^wd_reject_(.+)$/, async (ctx) => {
 });
 
 bot.action("noop_accepted", async (ctx) => {
-  await ctx.answerCbQuery("تمت الموافقة مسبقاً ✅");
+  try { await ctx.answerCbQuery("تمت الموافقة مسبقاً ✅"); } catch {}
 });
 
 bot.action("noop_cancelled", async (ctx) => {
-  await ctx.answerCbQuery("تم الإلغاء مسبقاً");
+  try { await ctx.answerCbQuery("تم الإلغاء مسبقاً"); } catch {}
 });
 
 bot.action("terms1_accept", async (ctx) => {
-  await ctx.answerCbQuery("تم القبول ✅");
+  try { await ctx.answerCbQuery("تم القبول ✅"); } catch {}
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, { registrationStep: 2 });
   await editToAccepted(ctx);
@@ -748,14 +748,14 @@ bot.action("terms1_accept", async (ctx) => {
 });
 
 bot.action("terms1_reject", async (ctx) => {
-  await ctx.answerCbQuery("تم الإلغاء");
+  try { await ctx.answerCbQuery("تم الإلغاء"); } catch {}
   await storage.updateMember(String(ctx.from.id), { status: "rejected", registrationStep: 0 });
   await editToCancelled(ctx);
   await ctx.reply("تم إلغاء التسجيل. يمكنك الضغط على /start للمحاولة مجدداً.");
 });
 
 bot.action("terms2_accept", async (ctx) => {
-  await ctx.answerCbQuery("تم القبول ✅");
+  try { await ctx.answerCbQuery("تم القبول ✅"); } catch {}
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, { registrationStep: 3 });
   await editToAccepted(ctx);
@@ -763,14 +763,14 @@ bot.action("terms2_accept", async (ctx) => {
 });
 
 bot.action("terms2_reject", async (ctx) => {
-  await ctx.answerCbQuery("تم الإلغاء");
+  try { await ctx.answerCbQuery("تم الإلغاء"); } catch {}
   await storage.updateMember(String(ctx.from.id), { status: "rejected", registrationStep: 0 });
   await editToCancelled(ctx);
   await ctx.reply("تم إلغاء التسجيل. يمكنك الضغط على /start للمحاولة مجدداً.");
 });
 
 bot.action("terms3_accept", async (ctx) => {
-  await ctx.answerCbQuery("تم القبول ✅");
+  try { await ctx.answerCbQuery("تم القبول ✅"); } catch {}
   const telegramId = String(ctx.from.id);
   await storage.updateMember(telegramId, { registrationStep: 4, status: "awaiting_info" });
   await editToAccepted(ctx);
@@ -784,7 +784,7 @@ bot.action("terms3_accept", async (ctx) => {
 });
 
 bot.action("terms3_reject", async (ctx) => {
-  await ctx.answerCbQuery("تم الإلغاء");
+  try { await ctx.answerCbQuery("تم الإلغاء"); } catch {}
   await storage.updateMember(String(ctx.from.id), { status: "rejected", registrationStep: 0 });
   await editToCancelled(ctx);
   await ctx.reply("تم إلغاء التسجيل. يمكنك الضغط على /start للمحاولة مجدداً.");
@@ -1135,7 +1135,7 @@ bot.on("photo", async (ctx) => {
 });
 
 bot.action(/^grp_approve_(.+)$/, async (ctx) => {
-  await ctx.answerCbQuery("تمت الموافقة ✅");
+  try { await ctx.answerCbQuery("تمت الموافقة ✅"); } catch {}
   const telegramId = ctx.match[1];
   const member = await storage.getMember(telegramId);
   if (!member) return;
@@ -1148,12 +1148,12 @@ bot.action(/^grp_approve_(.+)$/, async (ctx) => {
       [styledButton("تمت الموافقة", "noop_accepted", "primary", CUSTOM_EMOJI_APPROVED)],
     ]
   };
-  await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, approvedMarkup);
+  try { await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, approvedMarkup); } catch {}
   await approveViaBot(telegramId);
 });
 
 bot.action(/^grp_reject_(.+)$/, async (ctx) => {
-  await ctx.answerCbQuery("تم الرفض");
+  try { await ctx.answerCbQuery("تم الرفض"); } catch {}
   const telegramId = ctx.match[1];
   const member = await storage.getMember(telegramId);
   if (!member) return;
@@ -1166,12 +1166,12 @@ bot.action(/^grp_reject_(.+)$/, async (ctx) => {
       [styledButton("تم الرفض", "noop_cancelled", "danger", CUSTOM_EMOJI_CANCEL)],
     ]
   };
-  await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, rejectedMarkup);
+  try { await rawEditMarkup(ctx.chat!.id, ctx.callbackQuery.message!.message_id, rejectedMarkup); } catch {}
   await rejectMember(telegramId);
 });
 
 bot.action(/^complete_task_(\d+)$/, async (ctx) => {
-  await ctx.answerCbQuery("تم!");
+  try { await ctx.answerCbQuery("تم!"); } catch {}
   const taskId = parseInt(ctx.match[1]);
   const telegramId = String(ctx.from.id);
   const member = await storage.getMember(telegramId);
@@ -1212,12 +1212,12 @@ bot.action(/^complete_task_(\d+)$/, async (ctx) => {
 });
 
 bot.action("submit_more_work_photos", async (ctx) => {
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   await ctx.reply("📸 أرسل صورة أخرى:");
 });
 
 bot.action("done_work_photos", async (ctx) => {
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const telegramId = String(ctx.from.id);
   if (!memberState[telegramId] || memberState[telegramId].action !== "collecting_work_screenshots") return;
 
@@ -1226,7 +1226,7 @@ bot.action("done_work_photos", async (ctx) => {
 });
 
 bot.action(/^task_another_account_(\d+)$/, async (ctx) => {
-  await ctx.answerCbQuery();
+  try { await ctx.answerCbQuery(); } catch {}
   const taskId = parseInt(ctx.match[1]);
   const telegramId = String(ctx.from.id);
   const member = await storage.getMember(telegramId);
