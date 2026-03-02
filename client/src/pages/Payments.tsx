@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, apiUrl } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,7 +146,9 @@ function SubmissionCard({ submission, tasks, members }: {
 function SubmissionList({ status, tasks, members }: { status?: string; tasks: Task[]; members: Member[] }) {
   const { data: submissions, isLoading } = useQuery<TaskSubmission[]>({
     queryKey: ["/api/submissions", status],
-    queryFn: () => fetch(`/api/submissions${status ? `?status=${status}` : ""}`).then(r => r.json()),
+    queryFn: () => fetch(apiUrl(`/api/submissions${status ? `?status=${status}` : ""}`), { credentials: "include" }).then(r => r.json()),
+    refetchInterval: 15000,
+    staleTime: 10000,
   });
 
   if (isLoading) {
@@ -181,7 +183,7 @@ export default function Payments() {
   const { data: tasks = [] } = useQuery<Task[]>({ queryKey: ["/api/tasks"] });
   const { data: members = [] } = useQuery<Member[]>({
     queryKey: ["/api/members"],
-    queryFn: () => fetch("/api/members").then(r => r.json()),
+    queryFn: () => fetch(apiUrl("/api/members"), { credentials: "include" }).then(r => r.json()),
   });
 
   return (

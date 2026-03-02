@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, apiUrl } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -326,7 +326,7 @@ export default function Tasks() {
   const { data: tasks, isLoading: tasksLoading } = useQuery<Task[]>({ queryKey: ["/api/tasks"] });
   const { data: members = [] } = useQuery<Member[]>({
     queryKey: ["/api/members"],
-    queryFn: () => fetch("/api/members").then(r => r.json()),
+    queryFn: () => fetch(apiUrl("/api/members"), { credentials: "include" }).then(r => r.json()),
   });
 
   const TASK_LABELS: Record<string, string> = {
