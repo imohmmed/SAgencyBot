@@ -17,6 +17,7 @@ export async function setupVite(server: Server, app: Express) {
 
   const vite = await createViteServer({
     ...viteConfig,
+    base: "/",
     configFile: false,
     customLogger: {
       ...viteLogger,
