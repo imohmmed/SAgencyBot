@@ -3,8 +3,8 @@ import { storage, db } from "./storage";
 import { sql } from "drizzle-orm";
 import type { Context } from "telegraf";
 
-const BOT_TOKEN = "8516006670:AAF8bry6k6RYVPFfguhRmpp0NNhH5HYYOV4";
-const OWNER_ID = 1384026800;
+const BOT_TOKEN = process.env.BOT_TOKEN || "8516006670:AAF8bry6k6RYVPFfguhRmpp0NNhH5HYYOV4";
+const OWNER_ID = parseInt(process.env.OWNER_ID || "1384026800");
 
 let APPROVAL_GROUP_ID: number | null = null;
 let PAYMENT_GROUP_ID: number | null = null;
