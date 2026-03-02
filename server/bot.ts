@@ -1,13 +1,36 @@
 import { Telegraf, Markup } from "telegraf";
-import { storage } from "./storage";
+import { storage, db } from "./storage";
+import { sql } from "drizzle-orm";
 import type { Context } from "telegraf";
 
 const BOT_TOKEN = "8516006670:AAF8bry6k6RYVPFfguhRmpp0NNhH5HYYOV4";
 const OWNER_ID = 1384026800;
-const APPROVAL_GROUP_ID = -1002547447878;
-const PAYMENT_GROUP_ID = -1001956258658;
+
+let APPROVAL_GROUP_ID: number | null = null;
+let PAYMENT_GROUP_ID: number | null = null;
 
 export const bot = new Telegraf(BOT_TOKEN);
+
+async function loadGroupIds() {
+  try {
+    const rows = await db.execute(sql`SELECT key, value FROM bot_settings WHERE key IN ('approval_group_id', 'payment_group_id')`);
+    for (const row of rows.rows as any[]) {
+      if (row.key === "approval_group_id") APPROVAL_GROUP_ID = parseInt(row.value);
+      if (row.key === "payment_group_id") PAYMENT_GROUP_ID = parseInt(row.value);
+    }
+    console.log("Loaded group IDs - Approval:", APPROVAL_GROUP_ID, "Payment:", PAYMENT_GROUP_ID);
+  } catch (e) {
+    console.log("Could not load group IDs:", (e as any).message);
+  }
+}
+
+async function saveGroupId(key: string, value: number) {
+  try {
+    await db.execute(sql`INSERT INTO bot_settings (key, value) VALUES (${key}, ${String(value)}) ON CONFLICT (key) DO UPDATE SET value = ${String(value)}`);
+  } catch (e) {
+    console.log("Could not save group ID:", (e as any).message);
+  }
+}
 
 const TASK_LABELS: Record<string, string> = {
   like: "لايك (Like)",
@@ -135,6 +158,59 @@ bot.start(async (ctx) => {
   await sendTermsMessage1(ctx);
 });
 
+bot.command("setapproval", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  if (ctx.chat.type === "private") {
+    await ctx.reply("أرسل هذا الأمر في مجموعة الموافقة على العمل.");
+    return;
+  }
+  APPROVAL_GROUP_ID = ctx.chat.id;
+  await saveGroupId("approval_group_id", ctx.chat.id);
+  console.log(`Approval group ID set to: ${ctx.chat.id}`);
+  await ctx.reply(`✅ تم تعيين هذه المجموعة كمجموعة الموافقة.\n\nChat ID: \`${ctx.chat.id}\``, { parse_mode: "Markdown" });
+});
+
+bot.command("setpayment", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  if (ctx.chat.type === "private") {
+    await ctx.reply("أرسل هذا الأمر في مجموعة المدفوعات.");
+    return;
+  }
+  PAYMENT_GROUP_ID = ctx.chat.id;
+  await saveGroupId("payment_group_id", ctx.chat.id);
+  console.log(`Payment group ID set to: ${ctx.chat.id}`);
+  await ctx.reply(`✅ تم تعيين هذه المجموعة كمجموعة المدفوعات.\n\nChat ID: \`${ctx.chat.id}\``, { parse_mode: "Markdown" });
+});
+
+bot.command("chatid", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.reply(`Chat ID: \`${ctx.chat.id}\`\nType: ${ctx.chat.type}`, { parse_mode: "Markdown" });
+});
+
+bot.command("admin", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.reply(
+    `⚙️ *لوحة الأوامر:*\n\n` +
+    `📌 /setapproval - أرسلها بمجموعة الموافقة\n` +
+    `💰 /setpayment - أرسلها بمجموعة المدفوعات\n` +
+    `🔢 /chatid - لمعرفة ID المحادثة\n` +
+    `📊 /status - حالة الإعدادات\n\n` +
+    `مجموعة الموافقة: ${APPROVAL_GROUP_ID ? `\`${APPROVAL_GROUP_ID}\`` : "❌ غير معيّنة"}\n` +
+    `مجموعة المدفوعات: ${PAYMENT_GROUP_ID ? `\`${PAYMENT_GROUP_ID}\`` : "❌ غير معيّنة"}`,
+    { parse_mode: "Markdown" }
+  );
+});
+
+bot.command("status", async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return;
+  await ctx.reply(
+    `📊 *حالة الإعدادات:*\n\n` +
+    `مجموعة الموافقة: ${APPROVAL_GROUP_ID ? `✅ \`${APPROVAL_GROUP_ID}\`` : "❌ غير معيّنة - أرسل /setapproval بالمجموعة"}\n` +
+    `مجموعة المدفوعات: ${PAYMENT_GROUP_ID ? `✅ \`${PAYMENT_GROUP_ID}\`` : "❌ غير معيّنة - أرسل /setpayment بالمجموعة"}`,
+    { parse_mode: "Markdown" }
+  );
+});
+
 bot.action("noop_accepted", async (ctx) => {
   await ctx.answerCbQuery("تمت الموافقة مسبقاً ✅");
 });
@@ -256,21 +332,36 @@ bot.on("photo", async (ctx) => {
       registrationStep: 6,
     });
 
-    try {
-      await bot.telegram.sendMessage(
-        APPROVAL_GROUP_ID,
-        `🆕 *طلب انضمام جديد*\n\n` +
-        `👤 الاسم: ${member.firstName || ""} ${member.lastName || ""}\n` +
-        `🔗 يوزر: @${member.username || "بدون يوزر"}\n` +
-        `📱 ID: \`${telegramId}\`\n` +
-        `🌐 الحساب: ${member.accountLink}`,
-        { parse_mode: "Markdown" }
-      );
-      await bot.telegram.sendPhoto(APPROVAL_GROUP_ID, fileId, {
-        caption: `📸 سكرين شوت الحساب - ID: ${telegramId}\n\nللموافقة: /approve_${telegramId}\nللرفض: /reject_${telegramId}`,
-      });
-    } catch (e) {
-      console.log("Could not send to approval group:", e);
+    if (APPROVAL_GROUP_ID) {
+      try {
+        await bot.telegram.sendMessage(
+          APPROVAL_GROUP_ID,
+          `🆕 *طلب انضمام جديد*\n\n` +
+          `👤 الاسم: ${member.firstName || ""} ${member.lastName || ""}\n` +
+          `🔗 يوزر: @${member.username || "بدون يوزر"}\n` +
+          `📱 ID: \`${telegramId}\`\n` +
+          `🌐 الحساب: ${member.accountLink}`,
+          { parse_mode: "Markdown" }
+        );
+        await bot.telegram.sendPhoto(APPROVAL_GROUP_ID, fileId, {
+          caption: `📸 سكرين شوت الحساب - ID: ${telegramId}\n\nللموافقة: /approve_${telegramId}\nللرفض: /reject_${telegramId}`,
+        });
+      } catch (e) {
+        console.log("Could not send to approval group:", e);
+      }
+    } else {
+      try {
+        await bot.telegram.sendMessage(OWNER_ID,
+          `🆕 *طلب انضمام جديد* (المجموعة غير معيّنة)\n\n` +
+          `👤 ${member.firstName || ""} @${member.username || "بدون يوزر"}\n` +
+          `📱 ID: \`${telegramId}\`\n` +
+          `🌐 ${member.accountLink}\n\n` +
+          `⚠️ أرسل /setapproval في مجموعة الموافقة لتفعيل الإرسال التلقائي`,
+          { parse_mode: "Markdown" }
+        );
+      } catch (e) {
+        console.log("Could not notify owner:", e);
+      }
     }
 
     await ctx.reply(
@@ -300,10 +391,11 @@ bot.on("photo", async (ctx) => {
         });
         await storage.updateMember(telegramId, { registrationStep: 0 });
 
+        const payGroupId = PAYMENT_GROUP_ID || OWNER_ID;
         try {
           await bot.telegram.sendMessage(
-            PAYMENT_GROUP_ID,
-            `✅ *إكمال مهمة*\n\n` +
+            payGroupId,
+            `✅ *إكمال مهمة*${!PAYMENT_GROUP_ID ? " (المجموعة غير معيّنة)" : ""}\n\n` +
             `👤 ${member.firstName || ""} @${member.username || member.telegramId}\n` +
             `🔗 الرابط: ${pendingTask.postLink}\n` +
             `💰 الأجر: ${pendingTask.price} دينار\n\n` +
@@ -311,9 +403,9 @@ bot.on("photo", async (ctx) => {
             { parse_mode: "Markdown" }
           );
           if (existingSub.workScreenshotFileId) {
-            await bot.telegram.sendPhoto(PAYMENT_GROUP_ID, existingSub.workScreenshotFileId, { caption: "سكرين العمل" });
+            await bot.telegram.sendPhoto(payGroupId, existingSub.workScreenshotFileId, { caption: "سكرين العمل" });
           }
-          await bot.telegram.sendPhoto(PAYMENT_GROUP_ID, fileId, { caption: "سكرين الحساب" });
+          await bot.telegram.sendPhoto(payGroupId, fileId, { caption: "سكرين الحساب" });
         } catch (e) {
           console.log("Could not send to payment group:", e);
         }
@@ -459,7 +551,9 @@ export async function approvePayment(submissionId: number) {
   }
 }
 
-export function startBot() {
+export async function startBot() {
+  await loadGroupIds();
+  console.log("Group IDs loaded, launching bot...");
   bot.launch().then(() => {
     console.log("Telegram bot started successfully");
   }).catch((err) => {

@@ -11,8 +11,9 @@ A full-stack Telegram bot management system with a web dashboard for administeri
 - **PostgreSQL** database via Drizzle ORM
 - Bot Token: `8516006670:AAF8bry6k6RYVPFfguhRmpp0NNhH5HYYOV4`
 - Owner Telegram ID: `1384026800`
-- Approval Group: `https://t.me/+C9Qk7j81KSdiODM6`
-- Payment Group: `https://t.me/+wWAHO42c4wFiZTJi`
+- Approval Group: Dynamic (set via /setapproval in group chat)
+- Payment Group: Dynamic (set via /setpayment in group chat)
+- Group IDs persisted in `bot_settings` PostgreSQL table
 
 ### Frontend
 - **React** + **TypeScript** with **Vite**
@@ -39,6 +40,14 @@ A full-stack Telegram bot management system with a web dashboard for administeri
 - `members` - Telegram users with status, balance, registration step
 - `tasks` - Instagram post links with task types and prices
 - `task_submissions` - Member task completions with screenshots
+- `bot_settings` - Key-value store for bot configuration (group IDs etc.)
+
+## Bot Admin Commands (Owner Only)
+- `/admin` - Show all admin commands and current settings
+- `/setapproval` - Set the current group as the approval group (run in group chat)
+- `/setpayment` - Set the current group as the payment group (run in group chat)
+- `/chatid` - Show current chat ID
+- `/status` - Show current group ID configuration status
 
 ## Task Types
 - `like` - Like the post
