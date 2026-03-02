@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { startBot, sendTaskToMember, approveMember, rejectMember, approvePayment } from "./bot";
 import { insertTaskSchema } from "@shared/schema";
 
-const ACCESS_CODE = process.env.ACCESS_CODE || "hdhshsh8817";
+const ACCESS_CODE = (process.env.ACCESS_CODE || "hdhshsh8817").trim();
 
 declare module "express-session" {
   interface SessionData {
@@ -35,7 +35,7 @@ export async function registerRoutes(
 
   app.post("/api/login", (req, res) => {
     const { code } = req.body;
-    if (code === ACCESS_CODE) {
+    if (code?.trim() === ACCESS_CODE) {
       req.session.authenticated = true;
       res.json({ success: true });
     } else {
