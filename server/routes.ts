@@ -70,7 +70,7 @@ export async function registerRoutes(
 
   app.post("/api/tasks/send-all", async (req, res) => {
     try {
-      const { postLink, taskTypes, price } = req.body;
+      const { postLink, taskTypes, price, notes } = req.body;
       if (!postLink || !taskTypes || !price) {
         return res.status(400).json({ error: "postLink, taskTypes, price required" });
       }
@@ -81,6 +81,7 @@ export async function registerRoutes(
           postLink,
           taskTypes,
           price,
+          notes: notes || null,
           assignedTo: m.telegramId,
           status: "pending",
         });

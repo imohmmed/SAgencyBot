@@ -24,6 +24,7 @@ export const tasks = pgTable("tasks", {
   assignedTo: text("assigned_to"),
   taskTypes: text("task_types").array().notNull().default(sql`'{}'::text[]`),
   price: integer("price").notNull().default(1000),
+  notes: text("notes"),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
   sentAt: timestamp("sent_at"),

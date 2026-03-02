@@ -35,9 +35,17 @@ async function saveGroupId(key: string, value: number) {
 const TASK_LABELS: Record<string, string> = {
   like: "لايك (Like)",
   comment: "تعليق (Comment)",
-  share_story: "توجيه ستوري مع تاك (Share to Story + Mention)",
-  explore: "حركة الاكسبلور - توجيه للخاص (Direct Share)",
+  share_story: "ستوري مع تاك (Share to Story)",
+  explore: "حركة الاكسبلور (Direct Share)",
 };
+
+function formatTaskType(t: string): string {
+  if (t.startsWith("comment_")) {
+    const count = t.split("_")[1];
+    return `تعليق ${count} تعليقات (Comment)`;
+  }
+  return TASK_LABELS[t] || t;
+}
 
 const CUSTOM_EMOJI_ACCEPT = "4956454790012863177";
 const CUSTOM_EMOJI_CANCEL = "5287527086985069121";
@@ -964,7 +972,7 @@ bot.on("photo", async (ctx) => {
 
       const payGroupId = PAYMENT_GROUP_ID || OWNER_ID;
       try {
-        const taskTypeLabels = task.taskTypes.map(t => TASK_LABELS[t] || t).join("، ");
+        const taskTypeLabels = task.taskTypes.map(t => formatTaskType(t)).join("، ");
 
         const caption =
           `📋 إثبات إنجاز مهمة\n\n` +
@@ -1164,8 +1172,9 @@ export async function sendTaskToMember(telegramId: string, taskId: number) {
   const task = await storage.getTask(taskId);
   if (!task) return false;
 
-  const taskList = task.taskTypes.map(t => `• ${TASK_LABELS[t] || t}`).join("\n");
+  const taskList = task.taskTypes.map(t => `• ${formatTaskType(t)}`).join("\n");
   const priceText = task.price === 1000 ? "1000 دينار (كل المهام)" : `${task.price} دينار`;
+  const notesLine = task.notes ? `\n📝 ملاحظة: ${task.notes}\n` : "";
 
   try {
     await rawSendMessage(
@@ -1173,7 +1182,7 @@ export async function sendTaskToMember(telegramId: string, taskId: number) {
       `🔔 مهمة جديدة!\n\n` +
       `🔗 الرابط:\n${task.postLink}\n\n` +
       `📋 المهام المطلوبة:\n${taskList}\n\n` +
-      `💰 الأجر: ${priceText}\n\n` +
+      `💰 الأجر: ${priceText}${notesLine}\n\n` +
       `⚡ أنجز المهمة بأسرع وقت للحصول على الأجر!`,
       "",
       {

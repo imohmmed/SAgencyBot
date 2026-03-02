@@ -53,30 +53,32 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
   const [commentCount, setCommentCount] = useState("10");
   const [selectedMember, setSelectedMember] = useState("");
   const [price, setPrice] = useState("1000");
+  const [notes, setNotes] = useState("");
 
   const approvedMembers = members.filter(m => m.status === "approved");
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const tasks = [...selectedTasks];
-      if (tasks.includes("comment") && commentCount) {
-        const idx = tasks.indexOf("comment");
-        tasks[idx] = `comment_${commentCount}`;
-      }
+      const taskTypesToSend = selectedTasks.map(t => {
+        if (t === "comment" && commentCount) return `comment_${commentCount}`;
+        return t;
+      });
 
       if (selectedMember === "__all__") {
         const res = await apiRequest("POST", "/api/tasks/send-all", {
           postLink,
-          taskTypes: selectedTasks,
+          taskTypes: taskTypesToSend,
           price: parseInt(price),
+          notes: notes || undefined,
         });
         return await res.json();
       } else {
         const res = await apiRequest("POST", "/api/tasks", {
           postLink,
-          taskTypes: selectedTasks,
+          taskTypes: taskTypesToSend,
           price: parseInt(price),
           assignedTo: selectedMember || null,
+          notes: notes || undefined,
         });
         const task = await res.json();
         if (selectedMember) {
@@ -97,6 +99,7 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
       setSelectedTasks([]);
       setSelectedMember("");
       setPrice("1000");
+      setNotes("");
     },
     onError: () => toast({ title: "خطأ", description: "فشل إنشاء المهمة", variant: "destructive" }),
   });
@@ -194,6 +197,17 @@ function CreateTaskDialog({ members }: { members: Member[] }) {
                 data-testid="input-price"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">ملاحظة (اختياري)</Label>
+            <Input
+              id="notes"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="اكتب ملاحظة للعضو..."
+              data-testid="input-notes"
+            />
           </div>
 
           <div className="space-y-2">
