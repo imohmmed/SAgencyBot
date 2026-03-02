@@ -451,6 +451,7 @@ bot.on("photo", async (ctx) => {
 
       const approvalKeyboard = {
         inline_keyboard: [
+          [{ text: "👤 حساب التيليكرام", url: `tg://user?id=${telegramId}` }],
           [{ text: "📱 فتح الحساب", url: member.accountLink || `https://instagram.com/${member.username || ""}` }],
           [
             styledButton("موافقة", `grp_approve_${telegramId}`, "success", CUSTOM_EMOJI_ACCEPT),
@@ -533,6 +534,7 @@ bot.action(/^grp_approve_(.+)$/, async (ctx) => {
   const accountUrl = member.accountLink || `https://instagram.com/${member.username || ""}`;
   const approvedMarkup = {
     inline_keyboard: [
+      [{ text: "👤 حساب التيليكرام", url: `tg://user?id=${telegramId}` }],
       [{ text: "📱 فتح الحساب", url: accountUrl }],
       [styledButton("تمت الموافقة", "noop_accepted", "primary", CUSTOM_EMOJI_APPROVED)],
     ]
@@ -550,6 +552,7 @@ bot.action(/^grp_reject_(.+)$/, async (ctx) => {
   const accountUrl = member.accountLink || `https://instagram.com/${member.username || ""}`;
   const rejectedMarkup = {
     inline_keyboard: [
+      [{ text: "👤 حساب التيليكرام", url: `tg://user?id=${telegramId}` }],
       [{ text: "📱 فتح الحساب", url: accountUrl }],
       [styledButton("تم الرفض", "noop_cancelled", "danger", CUSTOM_EMOJI_CANCEL)],
     ]
